@@ -1,0 +1,204 @@
+DEEP RESEARCH TASK: Realistic Iceberg / Lakehouse Table Characteristics for Compaction Simulation
+
+CONTEXT
+-------
+We are writing an academic paper (ICCNS 2026) on predicting Apache Iceberg
+compaction utility using XGBoost trained on metadata features. Our pipeline
+generates synthetic Iceberg tables, extracts 17 metadata features from
+manifests (no data reads), runs bin-packing compaction (128 MB target,
+96 MB min, 230 MB max), and trains classifiers/regressors on the outcome.
+
+Our current v2 parameter grid has 7 axes (648 total configs):
+
+  num_rows:            [10_000, 100_000, 1_000_000]
+  num_columns:         [5, 50]          # payload cols, ~30 B/col in Parquet
+  num_partitions:      [1, 10, 100]
+  num_writers:         [1, 5]           # concurrent writers per batch
+  num_write_batches:   [1, 5, 20]       # append rounds
+  file_size_target_kb: [8, 32_768, 131_072]   # 8 KB, 32 MB, 128 MB
+  partition_skew:      ["uniform", "zipf"]
+
+Additional mechanics:
+  - Batch 0 = 50% of rows (initial load); rest split equally
+  - Odd-indexed batches use file_size_target / 8 (heterogeneity)
+  - Zipf skew uses s=1
+  - Payload is UUID strings (~1.5 KB/row at 50 cols)
+  - Compaction: Iceberg rewrite_data_files, bin-pack, target 128 MB
+
+CONCERN
+-------
+We are unsure whether these parameter ranges and combinations produce
+table layouts that resemble real-world production Iceberg / Delta Lake /
+Hudi tables. Specifically:
+
+  1. Are the row counts realistic? Production tables range from tiny
+     dimension tables to multi-billion-row fact tables.
+  2. Is the column count range (5–50) representative? Wide tables in
+     IoT/clickstream can have 200+ columns.
+  3. Are 1–100 partitions realistic? Daily-partitioned tables over years
+     can reach 1000+ partitions.
+  4. Are 1–5 concurrent writers enough? Streaming micro-batch jobs can
+     produce dozens of writers.
+  5. Is 1–20 write batches a good range? Some tables get hundreds of
+     daily appends.
+  6. Do the file size targets (8 KB, 32 MB, 128 MB) cover the real
+     distribution? What file sizes are typical in production?
+  7. Is Zipf(s=1) the right skew model? How skewed are real partition
+     distributions?
+
+RESEARCH QUESTIONS
+------------------
+Please conduct deep research into the following:
+
+  A. REAL-WORLD TABLE PROFILES
+     What do production Iceberg/Delta/Hudi tables actually look like?
+     Gather data from:
+       - Published benchmarks (TPC-DS, TPC-H scale factors actually used)
+       - Blog posts from Databricks, Tabular/Dremio, Cloudera, Netflix,
+         Uber, Apple, LinkedIn, Airbnb, etc. about their lakehouse deployments
+       - Conference talks (Data+AI Summit, Subsurface, Trino Summit, etc.)
+       - Academic papers on lakehouse / data lake management
+       - Open-source project documentation and default configs Iceberg /
+         Delta / Hudi configuration defaults and tuning guides
+
+     For each source, extract concrete numbers for:
+       - Row counts (min, median, p95, max across their fleet)
+       - Column counts
+       - Partition counts and partitioning strategies (daily, hourly, etc.)
+       - Number of data files per table
+       - File sizes (distribution: min, avg, p50, p95, max)
+       - Write patterns (batch frequency, concurrent writers, streaming
+         vs. batch)
+       - File size targets used in production
+       - Partition skew characteristics
+
+  B. COMPACTION BEHAVIOR IN PRODUCTION
+     How do real organizations decide when to compact?
+       - What thresholds or heuristics are used?
+       - What is the typical file count / size distribution before
+         compaction is triggered?
+       - How often do tables NOT need compaction?
+       - What fraction of files are typically rewritten?
+
+  C. GAP ANALYSIS
+     Compare our parameter grid against the real-world data:
+       - Which parameter ranges are realistic?
+       - Which are missing or too narrow?
+       - Which combinations are unrealistic and should be pruned?
+       - What important axes of variation are we missing entirely?
+         (e.g., data types, compression codecs, sort orders, delete files,
+          equality/position deletes, schema evolution, time-travel retention)
+
+  D. RECOMMENDATIONS
+     Based on the gap analysis, propose:
+       - Revised parameter axes and ranges
+       - New axes to add (if any)
+       - Configs to prune as unrealistic
+       - Priority ranking: which changes would most improve realism?
+
+OUTPUT FORMAT
+-------------
+Produce a single structured JSON file called `research_output.json` with
+the following schema. This will be consumed programmatically.
+
+{
+  "sources": [
+    {
+      "id": "source_01",
+      "type": "blog|paper|talk|docs|benchmark",
+      "title": "...",
+      "url": "...",
+      "org": "Netflix|Uber|...",
+      "year": 2024,
+      "key_findings": ["..."]
+    }
+  ],
+
+  "real_world_profiles": {
+    "row_counts": {
+      "min": ..., "p25": ..., "median": ..., "p75": ..., "p95": ..., "max": ...,
+      "unit": "rows",
+      "notes": "..."
+    },
+    "column_counts": {
+      "min": ..., "p25": ..., "median": ..., "p75": ..., "p95": ..., "max": ...,
+      "notes": "..."
+    },
+    "partition_counts": {
+      "min": ..., "p25": ..., "median": ..., "p75": ..., "p95": ..., "max": ...,
+      "common_strategies": ["daily", "hourly", "..."],
+      "notes": "..."
+    },
+    "file_counts_per_table": {
+      "min": ..., "median": ..., "p95": ..., "max": ...,
+      "notes": "..."
+    },
+    "file_sizes_bytes": {
+      "min": ..., "p25": ..., "median": ..., "p75": ..., "p95": ..., "max": ...,
+      "typical_targets": ["128MB", "256MB", "..."],
+      "notes": "..."
+    },
+    "write_patterns": {
+      "batch_frequencies": ["hourly", "daily", "..."],
+      "typical_concurrent_writers": {"min": ..., "median": ..., "max": ...},
+      "typical_batches_per_day": {"min": ..., "median": ..., "max": ...},
+      "streaming_micro_batch_interval_seconds": {"min": ..., "typical": ..., "max": ...},
+      "notes": "..."
+    },
+    "partition_skew": {
+      "model": "zipf|lognormal|...",
+      "typical_skew_parameter": ...,
+      "hottest_partition_fraction": "...",
+      "notes": "..."
+    }
+  },
+
+  "gap_analysis": {
+    "num_rows":            {"current": [10000,100000,1000000], "verdict": "too_narrow|ok|too_wide", "suggested": [...], "reasoning": "..."},
+    "num_columns":         {"current": [5,50],                 "verdict": "...", "suggested": [...], "reasoning": "..."},
+    "num_partitions":      {"current": [1,10,100],             "verdict": "...", "suggested": [...], "reasoning": "..."},
+    "num_writers":          {"current": [1,5],                  "verdict": "...", "suggested": [...], "reasoning": "..."},
+    "num_write_batches":   {"current": [1,5,20],               "verdict": "...", "suggested": [...], "reasoning": "..."},
+    "file_size_target_kb": {"current": [8,32768,131072],       "verdict": "...", "suggested": [...], "reasoning": "..."},
+    "partition_skew":      {"current": ["uniform","zipf"],     "verdict": "...", "suggested": [...], "reasoning": "..."},
+    "missing_axes": [
+      {"name": "...", "suggested_values": [...], "importance": "high|medium|low", "reasoning": "..."}
+    ],
+    "unrealistic_combos": [
+      {"combo": {"axis1": "val", "axis2": "val"}, "reason": "..."}
+    ]
+  },
+
+  "recommended_grid": {
+    "axes": {
+      "num_rows":            {"values": [...], "rationale": "..."},
+      "num_columns":         {"values": [...], "rationale": "..."},
+      "num_partitions":      {"values": [...], "rationale": "..."},
+      "num_writers":          {"values": [...], "rationale": "..."},
+      "num_write_batches":   {"values": [...], "rationale": "..."},
+      "file_size_target_kb": {"values": [...], "rationale": "..."},
+      "partition_skew":      {"values": [...], "rationale": "..."}
+    },
+    "new_axes": [
+      {"name": "...", "values": [...], "rationale": "..."}
+    ],
+    "total_configs": "...",
+    "pruning_rules": ["rule1", "rule2"],
+    "estimated_configs_after_pruning": "...",
+    "priority_changes": [
+      {"change": "...", "impact": "high|medium|low", "effort": "low|medium|high"}
+    ]
+  },
+
+  "summary": "2-3 paragraph executive summary of findings and recommendations"
+}
+
+IMPORTANT NOTES
+---------------
+- Cite concrete numbers wherever possible; avoid vague statements.
+- If a data point is an estimate or inference rather than a direct
+  measurement, flag it as such in the notes.
+- Focus on Apache Iceberg primarily, but include Delta Lake and Hudi
+  data where Iceberg-specific data is scarce.
+- Prefer post-2022 sources to reflect current practices.
+- The JSON must be valid and parseable.

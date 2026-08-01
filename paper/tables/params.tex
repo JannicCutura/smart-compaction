@@ -1,0 +1,23 @@
+\begin{table}[t]
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{-4pt}
+\centering
+\caption{Simulation Parameter Grid}
+\label{tab:params}
+\footnotesize
+\begin{tabular}{lp{1.8cm}p{2.8cm}}
+\toprule
+\textbf{Parameter} & \textbf{Description} & \textbf{Values} \\
+\midrule
+\texttt{num\_rows} & Total rows per table & 10K, 100K, 1M \\
+\texttt{num\_columns} & Payload columns (excl.\ part.\ key) & 5, 50 \\
+\texttt{num\_partitions} & Number of partitions (1\,=\,none) & 1, 10, 100 \\
+\texttt{num\_writers} & Writers per batch & 1, 5 \\
+\texttt{num\_write\_batches} & Append rounds & 1, 5, 20 \\
+\texttt{file\_size\_target\_kb} & Target file size (KB) & 8, 128, 512, 2K, 4K, 8K, 16K, 24K, 32K, 65K, 131K \\
+\texttt{partition\_skew} & Skew profile & uniform, zipf \\
+\midrule
+\multicolumn{3}{l}{\textit{Full grid: 2376 configurations}} \\
+\bottomrule
+\end{tabular}
+\end{table}

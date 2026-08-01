@@ -1,0 +1,8 @@
+* text=auto
+
+# Pipeline runs on Linux — CRLF breaks the shebang
+*.sh text eol=lf
+Makefile text eol=lf
+
+*.pdf binary
+*.cls text

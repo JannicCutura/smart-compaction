@@ -1,0 +1,68 @@
+TASK: Comprehensive literature review for an academic conference paper.
+
+CONFERENCE: The 4th International Conference on Intelligent Computing, Communication, Networking and Services (ICCNS2026), Track 5: Intelligent Big Data Management and Processing. IEEE technically co-sponsored.
+
+PAPER TOPIC: Using machine learning to predict compaction benefit in Apache Iceberg (and similar lakehouse table formats like Delta Lake, Apache Hudi). The goal is cost-aware compaction scheduling: given only table metadata (file counts, file size distributions, partition statistics, snapshot history, write patterns), predict whether compacting now yields net positive utility (query performance gain minus compaction compute cost). This replaces naive fixed-interval or threshold-based compaction triggers.
+
+SCOPE OF LITERATURE REVIEW — Please cover ALL of the following areas:
+
+1. LAKEHOUSE TABLE FORMATS & COMPACTION
+   - Apache Iceberg, Delta Lake, Apache Hudi architecture and compaction mechanisms
+   - Existing compaction strategies (bin-packing, sort-based, z-order clustering)
+   - Known performance characteristics and when compaction helps/hurts
+   - Industry practices for compaction scheduling (e.g., Databricks auto-compaction, AWS Glue compaction)
+
+2. AUTOMATED DATABASE TUNING & SELF-DRIVING DATABASES
+   - OtterTune (Van Aken et al., 2017) and successors
+   - CDBTune, QTune, and other RL-based database tuning
+   - Self-driving database systems (Pavlo et al., NoisePage/Peloton)
+   - Learned index structures (Kraska et al.) — tangentially relevant
+   - Any work on automated storage layout optimization
+
+3. COST MODELING FOR STORAGE OPERATIONS
+   - Cost models for compaction/merge operations in LSM-trees (RocksDB, LevelDB, Cassandra)
+   - Dostoevsky (Dayan & Idreos, 2018) and related LSM tuning work
+   - Monkey, Endure, and other LSM-tree optimization papers
+   - Write amplification analysis and optimization
+   - Any cost-benefit models for reorganization operations in columnar stores
+
+4. ML FOR DATA MANAGEMENT (LEARNED SYSTEMS)
+   - ML for query optimization (learned cardinality estimation, Neo, Bao)
+   - ML for workload characterization and prediction
+   - ML for storage tiering and data placement decisions
+   - Reinforcement learning applied to database operations
+   - Any ML-based approach to file/partition management
+
+5. WORKLOAD GENERATION & BENCHMARKING
+   - Existing benchmarks for lakehouse systems (TPC-DS adaptations, etc.)
+   - Synthetic workload generation for data lakes
+   - How prior papers in this space validated generalization
+
+6. RELATED INDUSTRY/OPEN-SOURCE EFFORTS
+   - Iceberg's built-in RewriteDataFilesAction and its heuristics
+   - Delta Lake OPTIMIZE command internals
+   - Hudi compaction scheduling
+   - Any open-source tools for intelligent compaction scheduling
+   - Blog posts or whitepapers from Databricks, Snowflake, Dremio, Tabular on compaction best practices (cite as grey literature if relevant)
+
+DELIVERABLES — Please produce:
+
+A. A BibTeX file (references.bib) containing all cited works, properly formatted. Use standard BibTeX entry types (@article, @inproceedings, @misc for arXiv preprints). Include DOIs where available. Aim for 30-60 references covering the areas above.
+
+B. A structured summary document (lit-review-summary.md) organized by the 6 areas above. For each area:
+   - 2-3 paragraph narrative summarizing the state of the art
+   - Key papers with one-sentence descriptions of their contribution
+   - Identify gaps: what has NOT been addressed (this is where our paper fits)
+
+C. A "positioning" section at the end that:
+   - States clearly what the gap in the literature is
+   - Explains how our proposed work (ML-based compaction prediction for Iceberg using only metadata features) is novel relative to existing work
+   - Identifies the 5-10 most important papers we MUST cite and discuss in our Related Work section
+   - Suggests how to frame our contribution relative to the LSM-tree compaction tuning literature (which is the closest analog but for a different storage paradigm)
+
+IMPORTANT NOTES:
+- Prioritize peer-reviewed publications (conferences: SIGMOD, VLDB, ICDE, SOSP, OSDI, EuroSys, SoCC, CIDR; journals: VLDBJ, TODS, TKDE)
+- Include arXiv preprints only if they are well-cited or very recent and directly relevant
+- Verify that papers actually exist — do not hallucinate citations. If unsure about a paper's details, note the uncertainty.
+- The conference deadline is mid-April 2026, so include papers published through early 2026 if available.
+- We are targeting a 6-page IEEE conference paper format (IEEEtran, 10pt, two-column).

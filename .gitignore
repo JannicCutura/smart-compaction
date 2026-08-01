@@ -1,0 +1,27 @@
+.venv/
+__pycache__/
+*.egg-info/
+
+data/
+logs/
+
+agents/
+
+# Publisher PDFs — cited in paper/references.bib, not redistributable
+literature/
+
+# JVM compiler replay dumps
+replay_pid*.log
+
+# LaTeX build artifacts (.bbl kept: camera-ready submissions require it)
+*.aux
+*.blg
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+texput.*

@@ -1,0 +1,388 @@
+\documentclass[aspectratio=169, 10pt]{beamer}
+
+% --- Theme and colors (clean, professional, IEEE-friendly) ---
+\usetheme{Madrid}
+\usecolortheme{default}
+\definecolor{ieeeblue}{RGB}{0, 63, 114}
+\setbeamercolor{structure}{fg=ieeeblue}
+\setbeamercolor{title}{fg=white, bg=ieeeblue}
+\setbeamercolor{frametitle}{fg=white, bg=ieeeblue}
+\setbeamercolor{block title}{fg=white, bg=ieeeblue}
+\setbeamercolor{item}{fg=ieeeblue}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}{%
+  \leavevmode\hbox{%
+    \begin{beamercolorbox}[wd=.333\paperwidth,ht=2.5ex,dp=1ex,center]{author in head/foot}%
+      \usebeamerfont{author in head/foot}\insertshortauthor
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.334\paperwidth,ht=2.5ex,dp=1ex,center]{title in head/foot}%
+      \usebeamerfont{title in head/foot}\insertshorttitle
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.333\paperwidth,ht=2.5ex,dp=1ex,right]{date in head/foot}%
+      \usebeamerfont{date in head/foot}\insertshortdate\hspace{2em}%
+      \insertframenumber{}/\inserttotalframenumber\hspace{2ex}
+    \end{beamercolorbox}}%
+}
+
+% --- Packages ---
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+% --- Metadata ---
+\title[Compaction Utility Prediction]{Predicting Compaction Utility\\from Lakehouse Table Metadata}
+\author[Cutura \& Prakash]{%
+  Jannic Alexander Cutura\textsuperscript{1,2} \and Subash Prakash\textsuperscript{3}}
+\institute[ECB / DSTI / Nordcloud]{%
+  \textsuperscript{1}European Central Bank \quad
+  \textsuperscript{2}DSTI School of Engineering \quad
+  \textsuperscript{3}Nordcloud (an IBM Company)}
+\date{March 2026}
+
+\begin{document}
+
+% =============================================================
+\begin{frame}
+\titlepage
+\end{frame}
+
+% =============================================================
+\begin{frame}{Outline}
+\tableofcontents
+\end{frame}
+
+% =============================================================
+\section{Motivation}
+% =============================================================
+
+\begin{frame}{The Small File Problem}
+\begin{columns}[T]
+\begin{column}{0.55\textwidth}
+\textbf{Lakehouse table formats} (Iceberg, Delta Lake, Hudi):
+\begin{itemize}
+  \item Append-only, log-structured writes
+  \item Each commit adds new immutable Parquet files
+  \item Snapshot isolation + time travel
+\end{itemize}
+\vspace{1em}
+\textbf{Consequence:} progressive file accumulation
+\begin{itemize}
+  \item Query planning scans every file's metadata
+  \item S3 LIST/GET calls are priced per request
+  \item Excessive file-open overhead degrades scans
+\end{itemize}
+\end{column}
+\begin{column}{0.42\textwidth}
+\begin{block}{At Scale}
+  Catalogs with thousands of tables accumulate
+  \textbf{millions} of undersized files.\\[0.5em]
+  AutoComp (LinkedIn): 35,000+ Iceberg tables.
+\end{block}
+\vspace{0.5em}
+\begin{block}{Compaction}
+  Rewrites many small files $\rightarrow$ fewer target-sized files.\\[0.3em]
+  But compaction \textbf{costs compute}.\\[0.3em]
+  \emph{When} is it worth it?
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+% -------------------------------------------------------------
+
+\begin{frame}{The Gap}
+\begin{itemize}
+  \item All open-source scheduling is \textbf{threshold-driven}:
+    \begin{itemize}
+      \item Iceberg: purely imperative (no built-in scheduler)
+      \item Delta Lake: triggers on small-file counts
+      \item Hudi: commit-count / elapsed-time rules
+    \end{itemize}
+  \item AutoComp uses hand-crafted heuristics + Pareto ranking
+  \item Databricks Predictive Optimization claims ML, but is proprietary
+  \item \textbf{No open study} examines \emph{which} metadata features
+        determine compaction utility
+\end{itemize}
+\vspace{1em}
+\begin{block}{Our Goal}
+  Predict compaction utility from table metadata alone, using ML,
+  and identify which features matter.
+\end{block}
+\end{frame}
+
+% =============================================================
+\section{Methodology}
+% =============================================================
+
+\begin{frame}{Problem Formulation}
+\textbf{File count reduction ratio:}
+\[
+  r_{\mathrm{fc}} = 1 - \frac{n_{\mathrm{after}}}{n_{\mathrm{before}}}
+\]
+
+\vspace{0.5em}
+Two tasks:
+\begin{enumerate}
+  \item \textbf{Classification:} Does the table need compaction?
+        ($r_{\mathrm{fc}} > 0.5$)
+  \item \textbf{Regression:} Predict the continuous $r_{\mathrm{fc}} \in [0,1]$
+        for cost-aware scheduling
+\end{enumerate}
+
+\vspace{1em}
+\textbf{Key constraint:} features extracted only from Iceberg metadata
+(manifests, snapshots, partition stats). No data files read.
+\end{frame}
+
+% -------------------------------------------------------------
+
+\begin{frame}{Simulation Framework}
+\begin{columns}[T]
+\begin{column}{0.50\textwidth}
+\textbf{Parameter grid:} 7 axes, 2,376 combinations
+\begin{itemize}
+  \item Row counts: $10^4$ to $10^6$
+  \item File-size targets: 8\,KB to 128\,MB
+  \item Partitions: 1 to 100
+  \item Writers: 1 or 5
+  \item Batches: 1 to 20
+  \item Skew: uniform vs.\ Zipfian
+  \item Payload: 10 or 50 UUID columns
+\end{itemize}
+\end{column}
+\begin{column}{0.47\textwidth}
+\textbf{Heterogeneous writes:}
+\begin{itemize}
+  \item Batch 1: 50\% of rows (initial load)
+  \item Even batches: $8\times$ smaller file target
+  \item Breaks the ``tautology trap''
+\end{itemize}
+\vspace{0.5em}
+\textbf{Compaction:} Iceberg bin-packing
+\begin{itemize}
+  \item Target: 128\,MB
+  \item Min: 96\,MB (75\%)
+  \item Max: 230\,MB (180\%)
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+% -------------------------------------------------------------
+
+\begin{frame}{17 Metadata Features}
+\centering
+\includegraphics[width=0.75\textwidth]{../paper/plots/feature_violins.pdf}\\[0.3em]
+\small Ridge plot of all 17 features, min--max scaled. Split by compaction outcome.
+\end{frame}
+
+% =============================================================
+\section{Results}
+% =============================================================
+
+\begin{frame}{Classification: Binary Decision}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\centering
+\smallskip
+{\small\textbf{Classification (held-out test, $n=476$)}}\\[2pt]
+{\small
+\begin{tabular}{lcc}
+\toprule
+Model & Acc. & F1 \\
+\midrule
+XGBoost         & 1.000 & 1.000 \\
+Logistic Reg.   & 0.815 & 0.885 \\
+Threshold ($k{=}4$) & 1.000 & 1.000 \\
+\bottomrule
+\end{tabular}}
+\vspace{0.5em}
+\textbf{Single-feature threshold} perfectly solves classification:\\
+\texttt{max\_files\_per\_partition}~$> 4$
+\end{column}
+\begin{column}{0.50\textwidth}
+\includegraphics[width=\textwidth]{../paper/plots/feature_importance_clf.pdf}\\[0.2em]
+\small Two features account for \textbf{86.4\%} of classifier gain.
+\end{column}
+\end{columns}
+\end{frame}
+
+% -------------------------------------------------------------
+
+\begin{frame}{Regression: Continuous Prediction}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\centering
+\smallskip
+{\small\textbf{Regression (held-out test)}}\\[2pt]
+{\small
+\begin{tabular}{lcc}
+\toprule
+Model & RMSE & $R^2$ \\
+\midrule
+XGBoost    & 0.013 & 0.998 \\
+OLS        & 0.236 & 0.361 \\
+\bottomrule
+\end{tabular}}
+\vspace{0.5em}
+\begin{itemize}
+  \item OLS cannot capture the nonlinear saturation curve
+  \item Two features account for \textbf{95.2\%} of regressor gain
+  \item Spearman $\rho = 0.965$: monotonic but not linear
+\end{itemize}
+\end{column}
+\begin{column}{0.50\textwidth}
+\includegraphics[width=\textwidth]{../paper/plots/regression_scatter.pdf}\\[0.2em]
+\small Predicted vs.\ actual $r_{\mathrm{fc}}$ on the held-out test set.
+\end{column}
+\end{columns}
+\end{frame}
+
+% =============================================================
+\section{Cross-Schema Generalization}
+% =============================================================
+
+\begin{frame}{TPC-H Validation (No Retraining)}
+\begin{columns}[T]
+\begin{column}{0.45\textwidth}
+\textbf{96 Iceberg tables} from 6 TPC-H schemas\\
+(lineitem, orders, customer, part, partsupp, supplier)
+\begin{itemize}
+  \item Realistic data types (strings, dates, decimals)
+  \item 7--16 columns per schema
+  \item Scale factor $\sim$10 (468.8\,M rows, 15\,GB)
+\end{itemize}
+\vspace{0.5em}
+\centering
+\smallskip
+{\small\textbf{Cross-schema results}}\\[2pt]
+{\small
+\begin{tabular}{lcc}
+\toprule
+Task & Acc./RMSE & F1/$R^2$ \\
+\midrule
+Clf (XGBoost)    & 0.979 & 0.987 \\
+Clf (Threshold)  & 0.833 & 0.908 \\
+Reg (XGBoost)    & 0.058 & 0.976 \\
+\bottomrule
+\end{tabular}}
+\end{column}
+\begin{column}{0.53\textwidth}
+\textbf{Key findings:}
+\begin{itemize}
+  \item 97.9\% accuracy, zero false positives
+  \item +14.6 pp over threshold baseline
+  \item In a 1,000-table catalog: threshold triggers
+        $\sim$167 unnecessary jobs; ML triggers \textbf{none}
+\end{itemize}
+\vspace{0.5em}
+\begin{table}
+\centering
+\footnotesize
+\caption*{Per-schema breakdown}
+\begin{tabular}{lccc}
+\toprule
+Schema & Clf Acc. & Reg $R^2$ \\
+\midrule
+lineitem & 1.000 & 0.997 \\
+orders   & 1.000 & 1.000 \\
+part     & 1.000 & 1.000 \\
+supplier & 1.000 & 1.000 \\
+customer & 0.938 & 0.874 \\
+partsupp & 0.938 & 0.867 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\end{column}
+\end{columns}
+\end{frame}
+
+% =============================================================
+\section{Discussion}
+% =============================================================
+
+\begin{frame}{Key Insights}
+\begin{block}{Tautology Trap}
+  Benchmarks using only small synthetic files produce misleadingly
+  perfect metrics. File-size heterogeneity is essential for
+  non-trivial prediction targets.
+\end{block}
+
+\vspace{0.5em}
+\begin{block}{Feature Dominance}
+  Partition-level file counts (\texttt{max\_files\_per\_partition},
+  \texttt{avg\_files\_per\_partition}) dominate both tasks.
+  \begin{itemize}
+    \item Binary decision: fully solvable by a single threshold
+    \item Continuous prediction: requires nonlinear modelling
+  \end{itemize}
+\end{block}
+
+\vspace{0.5em}
+\begin{block}{Practical Implication}
+  AutoComp's compaction traits already include these features.
+  Our results confirm they are sufficient for binary scheduling,
+  but \textbf{cost-aware scheduling} requires a learned model.
+\end{block}
+\end{frame}
+
+% -------------------------------------------------------------
+
+\begin{frame}{Threats to Validity}
+\begin{itemize}
+  \item Synthetic UUID payloads compress differently from real columnar data
+  \item Partition structure is generated, not domain-derived
+  \item Query patterns are not modelled
+  \item Spark-local execution $\neq$ distributed clusters with S3
+  \item 89.3\% positive class prevalence may inflate accuracy
+  \item TPC-H partially mitigates synthetic-data concerns, but
+        production tables with schema evolution, delete files,
+        and mixed CoW/MoR remain untested
+\end{itemize}
+\end{frame}
+
+% =============================================================
+\section{Conclusion \& Future Work}
+% =============================================================
+
+\begin{frame}{Conclusion}
+\begin{enumerate}
+  \item \textbf{Binary compaction decision} is trivially solvable
+        by a single partition-level threshold
+  \item \textbf{Continuous reduction ratio} requires nonlinear modelling\\
+        (XGBoost $R^2 = 0.998$ vs.\ OLS $R^2 = 0.361$)
+  \item \textbf{Models generalize} across schemas: 97.9\% accuracy on
+        TPC-H with zero false positives
+  \item Compaction utility is determined by \textbf{structural metadata},
+        not data content
+\end{enumerate}
+
+\vspace{1em}
+\textbf{Future work:}
+\begin{itemize}
+  \item Extend to Delta Lake and Hudi
+  \item Add query-workload features and cloud-cost metrics
+  \item Multi-table scheduling via contextual bandits
+  \item Validation on production catalogs
+\end{itemize}
+
+\vspace{0.5em}
+\centering
+\textbf{All code and data publicly available.}
+\end{frame}
+
+% =============================================================
+\begin{frame}{}
+\centering
+\vspace{2em}
+{\Large\textbf{Thank You}}\\[1.5em]
+{\large Questions?}\\[2em]
+\small
+Jannic Alexander Cutura \quad\textbar\quad Subash Prakash\\[0.3em]
+\texttt{jannic.cutura@dsti.institute} \quad\textbar\quad
+\texttt{subash.prakash@nordcloud.com}
+\end{frame}
+
+\end{document}
