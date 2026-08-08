@@ -17,10 +17,22 @@
 \def\UrlBreaks{\do\/\do-\do\_}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+% ---------------------------------------------------------------------
+% Build switch. Default = ICCNS camera-ready (already cleared IEEE PDF
+% eXpress -- do not alter). Defining \ARXIV builds the arXiv preprint,
+% which adds the IEEE copyright notice required for an accepted paper:
+%
+%   make tex     -> paper.pdf        (camera-ready)
+%   make arxiv   -> paper-arxiv.pdf  (preprint, + IEEE notice)
+% ---------------------------------------------------------------------
+\newif\ifarxiv
+\ifdefined\ARXIV\arxivtrue\else\arxivfalse\fi
+
 \begin{document}
 
-\title{Smart Compaction: Predicting Compaction Utility from Lakehouse Table Metadata\textsuperscript{$\star$}%
-\thanks{$\star$The views expressed in this paper are solely those of the authors and do not necessarily reflect the views of their respective institutions or employers. All code and data for full replication are available at \url{https://github.com/JannicCutura/smart_compaction}.}
+\title{Smart Compaction: Predicting Compaction Utility from Lakehouse Table Metadata\textsuperscript{\ding{73}}%
+\thanks{\ding{73}\,The views expressed in this paper are solely those of the authors and do not necessarily reflect the views of the European Central Bank, the European System of Central Banks or IBM. All code and data for full replication are available at \url{https://github.com/JannicCutura/smart-compaction}.}
 }
 
 \author{\IEEEauthorblockN{Jannic Alexander Cutura}
@@ -28,8 +40,8 @@
 {\small\color{gray!80!black}\href{mailto:jannic.cutura@dsti.institute}{\texttt{jannic.cutura@dsti.institute}}}}
 \and
 \IEEEauthorblockN{Subash Prakash}
-\IEEEauthorblockA{\textsc{Nordcloud}\textsuperscript{\S}\\
-{\small\color{gray!80!black}\href{mailto:subash.prakash@nordcloud.com}{\texttt{subash.prakash@nordcloud.com}}}}
+\IEEEauthorblockA{\textsc{IBM}\textsuperscript{\S}\\
+{\small\color{gray!80!black}\href{mailto:subash.prakash@ibm.com}{\texttt{subash.prakash@ibm.com}}}}
 }
 
 \maketitle
@@ -37,8 +49,16 @@
 \renewcommand{\thefootnote}{\fnsymbol{footnote}}
 \footnotetext[2]{European Central Bank, Sonnemannstra\ss e 20, 60314 Frankfurt am Main, Germany.}
 \footnotetext[3]{DSTI School of Engineering, 59 Rue de l'Abb\'e Groult, 75015 Paris, France.}
-\footnotetext[4]{Nordcloud (an IBM Company), Haid-und-Neu-Stra\ss e 18, 76131 Karlsruhe, Germany.}
+\footnotetext[4]{IBM, IBM Campus 1, 71139 Ehningen, Germany.}
 \renewcommand{\thefootnote}{\arabic{footnote}}
+\ifarxiv
+{\let\thefootnote\relax\footnotetext{\copyright~2026 IEEE. Personal use of
+this material is permitted. Permission from IEEE must be obtained for all
+other uses, in any current or future media, including reprinting/republishing
+this material for advertising or promotional purposes, creating new collective
+works, for resale or redistribution to servers or lists, or reuse of any
+copyrighted component of this work in other works.}}
+\fi
 
 \begin{abstract}
 Open lakehouse table formats accumulate small data files over time,
@@ -60,7 +80,7 @@ All code and data are publicly available.
 \end{abstract}
 
 \begin{IEEEkeywords}
-data lakehouse, open table formats, compaction, machine learning, table optimization
+data lakehouse, open table formats, compaction, machine learning, table optimisation
 \end{IEEEkeywords}
 
 \section{Introduction}
@@ -68,19 +88,18 @@ data lakehouse, open table formats, compaction, machine learning, table optimiza
 The lakehouse architecture~\cite{armbrust2021lakehouse} unifies data warehousing
 and data lake workloads through open table formats like Apache
 Iceberg~\cite{iceberg_spec}, Delta Lake~\cite{armbrust2020delta}, and Apache
-Hudi~\cite{hudi_compaction}. These formats use append-only, log-structured
-write patterns where each transaction appends immutable columnar files,
-providing snapshot isolation at the cost of progressive file accumulation.
+Hudi~\cite{hudi_compaction}. Each transaction appends immutable columnar
+files, buying snapshot isolation at the cost of progressive file
+accumulation.
 
-This accumulation leads to the \emph{small file problem}: the number of data
-files grows without bound, increasing query planning latency, inflating
-per-request costs on cloud object stores, and degrading scan throughput. At
-scale, catalogs with thousands of tables can accumulate millions of undersized
-files~\cite{gruenheid2025autocomp}. \emph{Compaction} addresses this by
-rewriting small files into fewer target-sized files via bin-packing, sort, or
-z-order strategies. However, compaction itself is costly in terms of compute and
-I/O, so the question is not \emph{whether} to compact but \emph{when} the
-file reduction justifies the cost.
+This yields the \emph{small file problem}: file counts grow without bound,
+inflating query planning latency, per-request object-store costs, and scan
+overhead. At scale, catalogs can accumulate millions of undersized
+files~\cite{gruenheid2025autocomp}. \emph{Compaction} rewrites them into
+fewer target-sized files via bin-packing, sort, or z-order strategies, but
+is itself costly in compute and I/O. The question is therefore not
+\emph{whether} to compact but \emph{when} the file reduction justifies the
+cost.
 
 Currently, all open-source compaction scheduling is threshold-driven:
 Iceberg's \texttt{rewrite\_data\_files} is purely imperative~\cite{iceberg_spec},
@@ -121,36 +140,34 @@ bin-packing compaction outcomes. We make three contributions:
 
 \subsection{Compaction in LSM-Trees}
 
-LSM-tree compaction research has established cost models for merge
-policies~\cite{dayan2017monkey, dayan2018dostoevsky}, quantified the
+LSM-tree research has established merge-policy cost
+models~\cite{dayan2017monkey, dayan2018dostoevsky}, quantified the
 $63\times$ data movement overhead~\cite{sarkar2021compaction}, and
 applied RL~\cite{mo2023ruskey} and dynamic
 programming~\cite{ecotune2025} to timing decisions.
 Lakehouse tables differ fundamentally: flat columnar files on object
-stores without a level hierarchy, where file proliferation and scan
-overhead rather than write amplification drive costs. We share the
-core question --- \emph{when is reorganizing stored data worth the
-compute cost?} --- but address it with metadata-driven prediction
-rather than policy optimization.
+stores with no level hierarchy, where file proliferation rather than
+write amplification drives cost. We share the core question ---
+\emph{when is reorganising stored data worth the compute cost?} ---
+but answer it with metadata-driven prediction rather than policy
+optimisation.
 
 \subsection{Automated Database Tuning and ML for Systems}
 
 Database auto-tuning has progressed from rule-based
 advisors~\cite{chaudhuri2007selftuning} through
-OtterTune~\cite{vanaken2017ottertune} (Gaussian Process regression) and
+OtterTune~\cite{vanaken2017ottertune} (Gaussian processes) and
 CDBTune~\cite{zhang2019cdbtune} (deep RL) to
-NoisePage's~\cite{pavlo2021noisepage} forecast--model--plan framework. Our work
-instantiates this pattern: metadata features forecast compaction utility, and
-the binary decision constitutes the action plan.
-
+NoisePage's~\cite{pavlo2021noisepage} forecast--model--plan framework,
+which our work instantiates: metadata features forecast compaction
+utility, and the binary decision is the action plan.
 In the broader ``ML for systems'' movement~\cite{zhou2022dbmeetsai},
-Bao~\cite{marcus2021bao} steers query optimization via learned hint
-selection, directly analogous to our approach of steering compaction via a
-learned trigger. Qd-tree~\cite{yang2020qdtree} learns workload-aware data
-layouts. Despite this progress, no published work applies ML to predict the
-utility of a storage maintenance operation in the lakehouse context.
-AutoComp~\cite{gruenheid2025autocomp} is the closest predecessor, but
-relies on heuristic trait computation rather than learned models.
+Bao~\cite{marcus2021bao} steers query optimisation through learned hint
+selection and Qd-tree~\cite{yang2020qdtree} learns workload-aware
+layouts. Yet no published work applies ML to predict the utility of a
+storage maintenance operation in the lakehouse.
+AutoComp~\cite{gruenheid2025autocomp} is the closest predecessor,
+relying on heuristic trait computation rather than learned models.
 
 \section{Methodology}
 
@@ -195,7 +212,7 @@ Table~\ref{tab:params} lists seven configuration axes spanning 2{,}376 combinati
 The axes cover three orders of magnitude in file size (8\,KB to 128\,MB),%
 \footnote{The \texttt{file\_size\_target\_kb} column in Table~\ref{tab:params}
 specifies the Spark write-side parameter. Actual on-disk file sizes differ
-because the heterogeneous batch pattern (Section~II-B2) uses an $8\times$
+because the heterogeneous batch pattern (Section~\ref{sec:hetero}) uses an $8\times$
 smaller target for even-indexed batches, creating within-table variance.}
 partition cardinalities from 1 (unpartitioned) to 100, write parallelism of 1 or
 5 writers, append frequencies from 1 to 20 batches, and uniform vs.\ Zipfian
@@ -203,6 +220,7 @@ partition cardinalities from 1 (unpartitioned) to 100, write parallelism of 1 or
 files can reach the 128\,MB compaction target at scale.
 
 \subsubsection{Heterogeneous Write Patterns}
+\label{sec:hetero}
 To model production heterogeneity, the first batch receives 50\% of rows
 (initial load) while remaining batches split the rest equally. Even-indexed
 batches use a file-size target $8\times$ smaller than the configured value,
@@ -274,6 +292,7 @@ median~$= 0.950$, $\sigma = 0.294$), exhibiting a heavy left tail of
 tables that gain little from compaction.
 
 \subsection{Binary Compaction Decision}
+\label{sec:binary}
 
 Before addressing the regression task, we establish that the binary
 compaction decision does not require a learned model.
@@ -369,7 +388,7 @@ consistent across the full target range.
 \input{tables/quantile_errors}
 \end{table}
 
-\subsection{Cross-Schema Generalization}
+\subsection{Cross-Schema Generalisation}
 \label{sec:tpch}
 
 The preceding analysis trains and tests on tables sharing the same synthetic
@@ -435,7 +454,7 @@ the CI excludes zero, confirming a statistically significant
 but practically small gain.
 
 These results empirically confirm the feature dominance observed in
-Section~III-B: partition-level file counts carry nearly all the
+Section~\ref{sec:binary}: partition-level file counts carry nearly all the
 predictive signal. The 15 auxiliary features contribute a
 statistically significant but small marginal improvement
 ($\Delta R^2 \approx 0.02$), serving primarily as partial proxies
@@ -456,9 +475,11 @@ estimators saturate at $R^2 \geq 0.997$.
 To verify that the finding is not XGBoost-specific, we compare four
 model families (Table~\ref{tab:modelfamily}). Decision trees and
 random forests achieve near-perfect metrics, confirming that any
-tree-based model suffices. Logistic regression performs poorly
-($R^2 = 0.361$), underscoring the nonlinear structure of the
-regression target.
+tree-based model suffices. The linear baselines perform markedly
+worse on both tasks---logistic regression reaches only
+F1~$= 0.885$ on the binary decision, and OLS attains
+$R^2 = 0.361$ on the regression target---underscoring the
+nonlinear structure of $r_\mathrm{fc}$.
 
 
 \begin{table}[tb]
@@ -472,9 +493,13 @@ Model & Clf Acc. & Clf F1 & Reg $R^2$ & Reg RMSE \\
 XGBoost (ours)    & 1.000 & 1.000 & 0.998 & 0.013 \\
 Random Forest     & 1.000 & 1.000 & 0.998 & 0.013 \\
 Decision Tree     & 0.996 & 0.998 & 0.997 & 0.016 \\
-Logistic Reg.     & 0.815 & 0.885 & 0.361 & 0.236 \\
+Linear\textsuperscript{$\dagger$} & 0.815 & 0.885 & 0.361 & 0.236 \\
 \bottomrule
 \end{tabular}
+\\[2pt]
+{\raggedright\footnotesize
+\textsuperscript{$\dagger$}Logistic regression for the classification
+columns, ordinary least squares for the regression columns.\par}
 \end{table}
 
 \subsection{Statistical Confidence and Prevalence Robustness}
@@ -647,17 +672,18 @@ $r_{\mathrm{fc}}$ directly and does not depend on the binary label.
 
 The feature \texttt{small\_file\_ratio} (fraction of files below 96\,MB)
 uses the same threshold as the compaction filter, raising a
-target-leakage concern. However, this feature ranks outside the top-5
-by gain importance (\texttt{max\_files\_per\_partition} and
-\texttt{avg\_files\_per\_partition} account for 95.2\% of regressor
-gain), and the leave-one-out ablation (Section~\ref{sec:ablation})
-shows that removing it does not degrade $R^2$ below 0.988. The leakage
+target-leakage concern. However, its contribution is negligible in
+both tasks: it carries only 0.009 gain in the regressor --- against
+0.795 for \texttt{max\_files\_per\_partition} --- and does not enter
+the classifier's top ten at all.
+The leave-one-out ablation (Section~\ref{sec:ablation}) confirms this:
+removing it does not degrade $R^2$ below 0.988. The leakage
 is therefore present but inconsequential.
 
 \subsubsection{Operational Cost-Benefit Threshold}
 A production scheduler needs more than a predicted $r_{\mathrm{fc}}$---it
 needs a threshold below which compaction is not worth the I/O cost.
-Our dataset provides empirical guidance: of the 2{,}126 tables that
+Our dataset provides empirical guidance: of the 2{,}121 tables that
 trigger compaction, only 11 (0.5\%) have $r_{\mathrm{fc}} \leq 0.5$,
 and tables with $r_{\mathrm{fc}} \leq 0.1$ eliminate zero files
 on average. A natural scheduling rule is therefore: compact only

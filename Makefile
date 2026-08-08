@@ -1,4 +1,4 @@
-.PHONY: install_tex install_py tex clean params generate mount_data snapshot restore extract compact label train evaluate pipeline ablation ablation_plots compact_512 query_bench
+.PHONY: install_tex install_py tex arxiv slides clean params generate mount_data snapshot restore extract compact label train evaluate pipeline ablation ablation_plots compact_512 query_bench
 
 VENV := .venv
 PY := $(VENV)/bin/python
@@ -74,6 +74,16 @@ query_bench: install_py
 
 tex:
 	cd paper && pdflatex -interaction=nonstopmode -halt-on-error paper.tex && bibtex paper && pdflatex -interaction=nonstopmode -halt-on-error paper.tex && pdflatex -interaction=nonstopmode -halt-on-error paper.tex
+
+# arXiv preprint: same source plus the IEEE copyright notice required for
+# posting an accepted paper. Outputs paper/paper-arxiv.pdf and leaves the
+# camera-ready paper.pdf untouched.
+ARXIV_SRC := "\def\ARXIV{}\input{paper}"
+arxiv:
+	cd paper && pdflatex -interaction=nonstopmode -halt-on-error -jobname=paper-arxiv $(ARXIV_SRC) && bibtex paper-arxiv && pdflatex -interaction=nonstopmode -halt-on-error -jobname=paper-arxiv $(ARXIV_SRC) && pdflatex -interaction=nonstopmode -halt-on-error -jobname=paper-arxiv $(ARXIV_SRC)
+
+slides:
+	cd presentation && pdflatex -interaction=nonstopmode presentation.tex && pdflatex -interaction=nonstopmode presentation.tex
 
 clean:
 	cd paper && rm -f *.aux *.log *.out *.bbl *.blg *.fls *.fdb_latexmk *.synctex.gz *.toc paper.pdf
