@@ -16,10 +16,14 @@ Outputs (all under paper/plots/):
     label_distribution.pdf    -- histogram of file_reduction_ratio
     model_comparison_clf.pdf  -- grouped bar: classifier metric comparison
     model_comparison_reg.pdf  -- grouped bar: regressor metric comparison
+    feature_violins.pdf       -- ridge plot of the 17 features (paper, portrait)
+    feature_violins_wide.pdf  -- same, two panels for 16:9 slides
+    cost_scatter.pdf          -- compaction time vs file reduction ratio
 
 Usage:
     python code/evaluate.py
     python code/evaluate.py --dataset data/dataset.csv --metrics data/train_metrics.json
+    python code/evaluate.py --only-violins      # just the two ridge plots
 """
 
 from __future__ import annotations
@@ -482,6 +486,158 @@ def plot_feature_violins(df: pd.DataFrame, out: Path) -> None:
     LOG.info("Saved %s", out)
 
 
+# Feature families, in the order they are listed in the paper (Sec. II-C).
+# Drives the two-panel layout and the colouring of the wide ridge plot.
+_FEATURE_FAMILIES = [
+    ("File-level", C_PRIMARY, [
+        "file_count", "total_size_bytes", "avg_file_size_bytes",
+        "min_file_size_bytes", "max_file_size_bytes", "stddev_file_size_bytes",
+        "total_records", "avg_records_per_file",
+    ]),
+    ("Partition-level", C_SECONDARY, [
+        "num_partitions_actual", "avg_files_per_partition",
+        "max_files_per_partition", "min_files_per_partition",
+        "stddev_files_per_partition",
+    ]),
+    ("History", C_TERTIARY, ["num_snapshots"]),
+    ("Derived ratio", C_HIGHLIGHT, [
+        "small_file_ratio", "file_size_cv", "files_per_partition_cv",
+    ]),
+]
+
+_LOG_FEATURES = {
+    "file_count", "total_size_bytes", "avg_file_size_bytes",
+    "min_file_size_bytes", "max_file_size_bytes", "stddev_file_size_bytes",
+    "total_records", "avg_records_per_file",
+    "avg_files_per_partition", "max_files_per_partition",
+}
+
+# Shared x-axis of every ridge: min-max scaled feature value in [0, 1].
+RIDGE_GRID = np.linspace(0, 1, 300)
+
+
+def _scaled_density(vals: np.ndarray, use_log: bool) -> np.ndarray | None:
+    """Peak-normalised KDE of a feature on RIDGE_GRID (None if degenerate).
+
+    Same transform as plot_feature_violins: optional log10, then min-max
+    scaling to [0, 1], then a Gaussian KDE with bandwidth factor 0.25.
+    """
+    from scipy.stats import gaussian_kde
+
+    vals = vals.astype(float)
+    if use_log:
+        vals = np.log10(vals + 1)
+    if vals.std() == 0 or len(vals) < 3:
+        return None
+    vals = (vals - vals.min()) / (vals.max() - vals.min())
+    density = gaussian_kde(vals, bw_method=0.25)(RIDGE_GRID)
+    return density / density.max()
+
+
+def feature_densities(df: pd.DataFrame) -> dict[str, np.ndarray]:
+    """Peak-normalised density curve of every feature, keyed by column."""
+    curves = {}
+    for feat in FEATURE_COLUMNS:
+        d = _scaled_density(df[feat].dropna().values, feat in _LOG_FEATURES)
+        if d is not None:
+            curves[feat] = d
+    return curves
+
+
+def _ridge_panel(
+    ax: plt.Axes,
+    rows: list[tuple[str, str]],
+    curves: dict[str, np.ndarray],
+    *,
+    row_h: float = 0.40,
+    overlap: float = 0.35,
+    label_size: int = 8,
+) -> None:
+    """Draw one ridge panel from precomputed (feature, colour) rows.
+
+    Rows are listed bottom-up (ridge-plot convention: front rows overlap the
+    ones behind them) and their labels are coloured by feature family, which
+    stands in for a legend.
+    """
+    n = len(rows)
+    for i, (feat, color) in enumerate(rows):
+        if feat not in curves:
+            continue
+        density = curves[feat] * row_h
+        baseline = i * row_h * (1 - overlap)
+        ax.fill_between(RIDGE_GRID, baseline, baseline + density,
+                        alpha=0.55, color=color,
+                        edgecolor="white", linewidth=0.3, zorder=n - i)
+        ax.plot(RIDGE_GRID, baseline + density,
+                color=C_DARK, linewidth=0.4, zorder=n - i + 1)
+
+    yticks = [i * row_h * (1 - overlap) + row_h * 0.20 for i in range(n)]
+    ylabels = [
+        _feature_label(feat) + ("*" if feat in _LOG_FEATURES else "")
+        for feat, _ in rows
+    ]
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(ylabels, fontsize=label_size)
+    for tick, (_, color) in zip(ax.get_yticklabels(), rows):
+        tick.set_color(color)
+    ax.set_ylim(-0.03, n * row_h * (1 - overlap) + row_h * 0.4)
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_xticklabels(["0", "0.25", "0.5", "0.75", "1"], fontsize=label_size - 1)
+    ax.grid(False, axis="y")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+
+
+# 16:9 beamer at 10pt: paper 16 cm wide, text block ~5.9 in. A figure this
+# size is included at \textwidth without scaling, so its 8pt labels stay 8pt.
+SLIDE_W = 6.0
+SLIDE_H = 2.6
+
+
+def draw_feature_violins_wide(curves: dict[str, np.ndarray], out: Path) -> None:
+    """Widescreen (16:9 slide) companion to plot_feature_violins.
+
+    Same min-max scaled ridges, but split into two side-by-side panels so the
+    17 rows fit a landscape frame: file-level features on the left, the
+    partition-level, history and derived-ratio features on the right. Ridges
+    and row labels are coloured by feature family instead of cycling the
+    palette, so no legend is needed.
+
+    Takes the curves rather than the dataset so the same layout can be fed
+    either from data/dataset.csv (plot_feature_violins_wide) or from the
+    curves recovered out of the published figure (violins_from_pdf.py).
+    """
+    # Reversed so the first feature in the paper's list sits at the top.
+    left = [(f, c) for name, c, feats in _FEATURE_FAMILIES[:1] for f in feats][::-1]
+    right = [(f, c) for name, c, feats in _FEATURE_FAMILIES[1:] for f in feats][::-1]
+
+    fig, (ax_l, ax_r) = plt.subplots(
+        1, 2, figsize=(SLIDE_W, SLIDE_H),
+        gridspec_kw={"width_ratios": [1, 1], "wspace": 0.55},
+    )
+    _ridge_panel(ax_l, left, curves)
+    _ridge_panel(ax_r, right, curves)
+
+    ax_l.set_title("File-level features", fontsize=9, loc="left", color=C_DARK)
+    ax_r.set_title("Partition-level, history and derived-ratio features",
+                   fontsize=9, loc="left", color=C_DARK)
+
+    fig.supxlabel(r"Min--max scaled value \quad (* = $\log_{10}$ transformed)",
+                  fontsize=8, y=0.01)
+    fig.subplots_adjust(left=0.17, right=0.99, top=0.89, bottom=0.19)
+    fig.savefig(out)
+    plt.close(fig)
+    LOG.info("Saved %s", out)
+
+
+def plot_feature_violins_wide(df: pd.DataFrame, out: Path) -> None:
+    """Wide ridge plot computed from the labelled dataset."""
+    draw_feature_violins_wide(feature_densities(df), out)
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
@@ -494,6 +650,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--plots-dir", type=Path, default=DEFAULT_PLOTS_DIR)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--test-size", type=float, default=0.2)
+    p.add_argument(
+        "--only-violins", action="store_true",
+        help="Draw only the two feature ridge plots (needs the dataset, "
+             "not the metrics or trained models).",
+    )
     return p.parse_args(argv)
 
 
@@ -504,6 +665,14 @@ def main(argv: list[str] | None = None) -> None:
 
     # Load data
     df = pd.read_csv(args.dataset)
+
+    if args.only_violins:
+        out = args.plots_dir
+        out.mkdir(parents=True, exist_ok=True)
+        plot_feature_violins(df, out / "feature_violins.pdf")
+        plot_feature_violins_wide(df, out / "feature_violins_wide.pdf")
+        return
+
     metrics = json.loads(args.metrics.read_text())
     LOG.info("Dataset: %d rows, Metrics seed=%d", len(df), metrics["seed"])
 
@@ -544,6 +713,7 @@ def main(argv: list[str] | None = None) -> None:
     plot_model_comparison_clf(metrics, out / "model_comparison_clf.pdf")
     plot_model_comparison_reg(metrics, out / "model_comparison_reg.pdf")
     plot_feature_violins(df, out / "feature_violins.pdf")
+    plot_feature_violins_wide(df, out / "feature_violins_wide.pdf")
     plot_cost_scatter(df, out / "cost_scatter.pdf")
 
     # Print summary

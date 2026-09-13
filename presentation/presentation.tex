@@ -18,6 +18,7 @@
 \setbeamercolor{block body}{bg=cprimary!6}
 \setbeamercolor{item}{fg=cprimary}
 \setbeamercolor{alerted text}{fg=cprimary}
+\setbeamerfont{alerted text}{series=\bfseries}
 \setbeamercolor{section in toc}{fg=cdark}
 \setbeamercolor{author in head/foot}{fg=white, bg=csecondary}
 \setbeamercolor{title in head/foot}{fg=white, bg=cprimary!85!black}
@@ -38,11 +39,75 @@
 }
 
 % --- Packages ---
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc,shapes.geometric}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{fontawesome5}
 \usepackage{hyperref}
 \usepackage{xcolor}
+
+\newcommand{\rfc}{r_{\mathrm{fc}}}
+\newcommand{\feat}[1]{\texttt{#1}}
+% Parameter cards on the simulation slide (geometry in cm).
+\newcommand{\axiscard}[4]{% name, x, width, level count
+  \node[card, minimum width=#3, anchor=west] (#1) at (#2,0) {};
+  \node[count] at (#1.north east) {#4};
+}
+\newcommand{\cardname}[3]{% card, icon, label
+  \node[cname, anchor=north west] at ([xshift=1.5mm,yshift=-1.4mm]#1.north west) {#2\; #3};
+}
+
+% Shared chart look for the pgfplots charts drawn on the slides.
+\pgfplotsset{
+  deck/.style={
+    axis line style={cneutral}, tick label style={font=\scriptsize},
+    label style={font=\scriptsize}, ymajorgrids, grid style={cneutral!40},
+    area legend,
+    legend style={draw=none, font=\scriptsize, at={(0.5,1.02)}, anchor=south,
+                  /tikz/every even column/.append style={column sep=5pt}},
+  },
+}
+
+% Boxes used in the diagrams. Burgundy = ours / after / benefit,
+% navy = before / cost, slate = metadata, grey = untouched.
+\tikzset{
+  box/.style={draw=cprimary, thick, rounded corners=2pt, fill=cprimary!6,
+              minimum height=7mm, inner xsep=6pt, align=center, font=\small},
+  stage/.style={draw=cprimary!60, fill=cprimary!5, rounded corners=2pt,
+                minimum height=9mm, align=center, inner xsep=5pt, font=\small},
+  term/.style={draw=cprimary, thick, rounded corners=2pt, minimum height=9mm,
+               align=center, inner xsep=5pt, font=\small\bfseries},
+  meta/.style={draw=ctertiary, thick, rounded corners=2pt, fill=ctertiary!12,
+               minimum height=6mm, inner xsep=4pt, align=center, font=\small},
+  cost/.style={draw=csecondary, thick, rounded corners=2pt, fill=csecondary!8,
+               minimum height=7mm, inner xsep=6pt, align=center, font=\small},
+  pfile/.style={draw=cprimary, thick, rounded corners=1pt, fill=cprimary!14,
+                minimum height=6mm, inner sep=0pt, font=\scriptsize},
+  kfile/.style={pfile, draw=black!45, fill=cneutral!35, text=black!60},
+  tiny/.style={draw=cprimary, rounded corners=1pt, fill=cprimary!14,
+               minimum width=4.2mm, minimum height=3.6mm, inner sep=0pt},
+  layer/.style={draw=cneutral, rounded corners=3pt, fill=black!3, inner sep=5pt},
+  arr/.style={-{Stealth[length=2mm]}, draw=cprimary!70, thick},
+  marr/.style={-{Stealth[length=1.6mm]}, draw=ctertiary!80, thin},
+  ann/.style={font=\scriptsize\itshape, text=black!55, inner sep=1.5pt, align=center},
+  lab/.style={font=\scriptsize\bfseries, text=black!60, inner sep=1pt, align=right},
+  % parameter cards on the simulation slide
+  card/.style={draw=cneutral, rounded corners=3pt, fill=black!3, inner sep=0pt,
+               minimum height=20mm},
+  cname/.style={font=\small\bfseries, text=cdark, inner sep=0pt},
+  count/.style={circle, fill=cprimary, text=white, font=\scriptsize\bfseries,
+                inner sep=0.8pt, minimum size=3.8mm},
+  chip/.style={draw=cprimary, rounded corners=1.5pt, fill=cprimary!14, font=\footnotesize,
+               inner xsep=2pt, inner ysep=1.5pt, text=cdark},
+  times/.style={font=\Large, text=cprimary!70},
+}
 
 % --- Metadata ---
 \title[Compaction Utility Prediction]{Smart Compaction:\\Predicting Compaction Utility from Lakehouse Table Metadata}
@@ -52,140 +117,447 @@
   \textsuperscript{1}European Central Bank \quad
   \textsuperscript{2}DSTI School of Engineering \quad
   \textsuperscript{3}IBM}
-\date{March 2026}
+\date[ICCNS 2026]{%
+  {\footnotesize The 4th International Conference on Intelligent Computing,\\
+  Communication, Networking and Services (ICCNS 2026)}\\[0.2em]
+  {\footnotesize Smart Data Processing track}\\[0.4em]
+  {\small 22--25 September 2026}}
 
 \begin{document}
 
 % =============================================================
 \begin{frame}
 \titlepage
-{\let\thefootnote\relax\footnote{\scriptsize The views expressed in this
+{\let\thefootnote\relax
+\footnote{\scriptsize Contact: \texttt{jannic.cutura@dsti.institute}
+\,\textbar\, \texttt{subash.prakash@ibm.com}\\
+\hspace*{0pt}Code: \url{https://github.com/JannicCutura/smart-compaction}}%
+\footnote{\scriptsize The views expressed in this
 presentation are solely those of the authors and do not necessarily reflect
 the views of the European Central Bank, the European System of Central Banks
 or IBM.}}
 \end{frame}
 
 % =============================================================
-\begin{frame}{Outline}
-\tableofcontents
-\end{frame}
-
-% =============================================================
 \section{Motivation}
 % =============================================================
 
-\begin{frame}{The Small File Problem}
+\begin{frame}{A lakehouse table is a set of immutable files plus a metadata tree}
+\begin{center}
+\resizebox{0.86\textwidth}{!}{%
+\begin{tikzpicture}
+  % --- engines ---
+  \node[term] (spark) at (0,0) {Spark};
+  \node[term] (trino) at (2.4,0) {Trino};
+  \node[term] (flink) at (4.8,0) {Flink};
+  \node[lab, anchor=east] at (-1.2,0) {query engines};
+
+  % --- table format metadata ---
+  \node[meta] (s1) at (0.6,-1.7) {snapshot $s_1$};
+  \node[meta] (s2) at (4.2,-1.7) {snapshot $s_2$};
+  \node[meta] (m1) at (0.6,-3.0) {manifest $m_1$};
+  \node[meta] (m2) at (4.2,-3.0) {manifest $m_2$};
+  \draw[marr] (s1) -- (m1);
+  \draw[marr] (s2) -- (m2);
+  \draw[marr] (s2) -- node[ann, sloped, above, pos=0.45] {still points at $m_1$} (m1);
+  \node[ann, anchor=west] at (5.6,-1.7) {each commit = a new snapshot};
+  \node[ann, anchor=west] at (5.6,-3.0) {list of data files + stats};
+
+  % --- object store files ---
+  \node[pfile, minimum width=11mm] (f1) at (-0.4,-4.4) {$f_1$};
+  \node[pfile, minimum width=11mm] (f2) at (1.0,-4.4) {$f_2$};
+  \node[pfile, minimum width=11mm] (f3) at (2.6,-4.4) {$f_3$};
+  \node[pfile, minimum width=11mm] (f4) at (4.0,-4.4) {$f_4$};
+  \node[pfile, minimum width=11mm] (f5) at (5.4,-4.4) {$f_5$};
+  \draw[marr] (m1) -- (f1);
+  \draw[marr] (m1) -- (f2);
+  \draw[marr] (m2) -- (f3);
+  \draw[marr] (m2) -- (f4);
+  \draw[marr] (m2) -- (f5);
+  \node[ann, anchor=west] at (6.4,-4.4) {Parquet, never modified};
+
+  % --- layers ---
+  \begin{scope}[on background layer]
+    \node[layer, fit=(s1)(s2)(m1)(m2), inner ysep=7pt] (fmt) {};
+    \node[layer, fit=(f1)(f5), inner ysep=6pt] (store) {};
+  \end{scope}
+  \node[lab, anchor=east] at (-1.2,-2.35) {table format\\[-1pt]\scriptsize\mdseries Iceberg, Delta, Hudi};
+  \node[lab, anchor=east] at (-1.2,-4.4) {object store\\[-1pt]\scriptsize\mdseries S3, ADLS, GCS};
+
+  \draw[arr] (spark.south) -- (fmt.north -| spark.south);
+  \draw[arr] (trino.south) -- (fmt.north -| trino.south);
+  \draw[arr] (flink.south) -- (fmt.north -| flink.south);
+\end{tikzpicture}}
+\end{center}
+
+\vspace{1mm}
+Engines see a table through its metadata, not its files. Every commit
+\alert{appends} new files and a new snapshot and never touches existing
+ones --- that is what buys ACID, time travel and snapshot isolation on
+cheap object storage.
+\end{frame}
+
+% -------------------------------------------------------------
+
+\begin{frame}{Every commit appends files, nothing ever merges them}
 \begin{columns}[T]
-\begin{column}{0.55\textwidth}
-\textbf{Lakehouse table formats} (Iceberg, Delta Lake, Hudi):
-\begin{itemize}
-  \item Append-only, log-structured writes
-  \item Each commit adds new immutable Parquet files
-  \item Snapshot isolation + time travel
-\end{itemize}
-\vspace{1em}
-\textbf{Consequence:} progressive file accumulation
-\begin{itemize}
-  \item Query planning scans every file's metadata
-  \item S3 LIST/GET calls are priced per request
-  \item Excessive file-open overhead degrades scans
-\end{itemize}
+\begin{column}{0.6\textwidth}
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}
+  % timeline
+  \draw[arr] (-0.2,0.9) -- (8.9,0.9) node[ann, right] {time};
+  \foreach \c/\x in {1/0.6, 2/2.4, 3/4.2, 4/6.0, 5/7.8} {
+    \node[lab, text=cprimary] at (\x,1.2) {commit \c};
+  }
+  % partitions x commits, two writers per cell
+  \foreach \p/\y in {A/0, B/-1, C/-2} {
+    \node[lab, anchor=east] at (-0.3,\y) {partition \p};
+    \foreach \x in {0.6, 2.4, 4.2, 6.0, 7.8} {
+      \node[tiny] at (\x-0.28,\y) {};
+      \node[tiny] at (\x+0.28,\y) {};
+    }
+  }
+  \node[ann] at (4.2,-2.75) {one file per partition, per writer, per commit};
+  \draw[dashed, cneutral] (1.5,0.5) -- (1.5,-2.5);
+  \draw[dashed, cneutral] (3.3,0.5) -- (3.3,-2.5);
+  \draw[dashed, cneutral] (5.1,0.5) -- (5.1,-2.5);
+  \draw[dashed, cneutral] (6.9,0.5) -- (6.9,-2.5);
+  % running count
+  \node[lab, anchor=east] at (-0.3,-3.3) {total};
+  \foreach \n/\x in {6/0.6, 12/2.4, 18/4.2, 24/6.0, 30/7.8} {
+    \node[font=\scriptsize\bfseries, text=cprimary] at (\x,-3.3) {\n\ files};
+  }
+\end{tikzpicture}}
+
+\vspace{2mm}
+\small files $=$ partitions $\times$ writers $\times$ commits.\\
+Our grid tops out at $100 \times 5 \times 20 = $ \alert{10{,}000 files}
+for a single table --- most of them far below the size a scan wants.
 \end{column}
-\begin{column}{0.42\textwidth}
-\begin{block}{At Scale}
-  Catalogs with thousands of tables accumulate
-  \textbf{millions} of undersized files.\\[0.5em]
-  AutoComp (LinkedIn): 35,000+ Iceberg tables.
-\end{block}
-\vspace{0.5em}
-\begin{block}{Compaction}
-  Rewrites many small files $\rightarrow$ fewer target-sized files.\\[0.3em]
-  But compaction \textbf{costs compute}.\\[0.3em]
-  \emph{When} is it worth it?
-\end{block}
+\begin{column}{0.38\textwidth}
+\textbf{Why file count hurts}
+\vspace{1mm}
+
+\begin{tikzpicture}[node distance=2.5mm]
+  \node[cost, text width=50mm, align=left] (plan)
+    {\faIcon{sitemap}\; \textbf{Planning}\\\scriptsize every manifest entry is read per query};
+  \node[cost, text width=50mm, align=left, below=of plan] (req)
+    {\faIcon{cloud}\; \textbf{Object store}\\\scriptsize LIST and GET are billed per request};
+  \node[cost, text width=50mm, align=left, below=of req] (scan)
+    {\faIcon{file-alt}\; \textbf{Scan}\\\scriptsize open + footer read + task, per file};
+\end{tikzpicture}
+
+\vspace{2mm}
+\small At scale: LinkedIn's AutoComp manages 35{,}000+ Iceberg tables;
+catalogs accumulate \alert{millions} of undersized files.
 \end{column}
 \end{columns}
 \end{frame}
 
 % -------------------------------------------------------------
 
-\begin{frame}{The Gap}
-\begin{itemize}
-  \item All open-source scheduling is \textbf{threshold-driven}:
-    \begin{itemize}
-      \item Iceberg: purely imperative (no built-in scheduler)
-      \item Delta Lake: triggers on small-file counts
-      \item Hudi: commit-count / elapsed-time rules
-    \end{itemize}
-  \item AutoComp (LinkedIn) uses heuristics + multi-objective Pareto
-        ranking; its authors name ML prediction as future work
-  \item Proprietary systems (Databricks Predictive Optimization,
-        Snowflake auto-clustering, AWS S3 Tables) are
-        \textbf{not open or reproducible}
-  \item \textbf{No published study} examines \emph{which} metadata
-        features determine compaction utility
-\end{itemize}
-\vspace{1em}
-\begin{block}{Our Goal}
-  Predict compaction utility from table metadata alone, using ML,
-  and identify which features matter.
+\begin{frame}{Compaction rewrites many small files into a few target-sized ones}
+\begin{center}
+\resizebox{0.95\textwidth}{!}{%
+\begin{tikzpicture}
+  % scale: 1 mm per 2.5 MB
+  \node[lab, anchor=east] at (-0.3,0) {before\\[-1pt]\scriptsize\mdseries 7 files};
+  \node[pfile, minimum width=3.2mm, anchor=west]  (b1) at (0,0)    {};
+  \node[pfile, minimum width=3.2mm, anchor=west]  (b2) at (0.45,0) {};
+  \node[pfile, minimum width=12mm,  anchor=west]  (b3) at (0.9,0)  {30};
+  \node[kfile, minimum width=44mm,  anchor=west]  (b4) at (2.25,0) {110 MB};
+  \node[pfile, minimum width=4.8mm, anchor=west]  (b5) at (6.8,0)  {};
+  \node[pfile, minimum width=16mm,  anchor=west]  (b6) at (7.4,0)  {40};
+  \node[kfile, minimum width=60mm,  anchor=west]  (b7) at (9.15,0) {150 MB};
+  \node[ann, anchor=south] at (0.45,0.4) {8, 8};
+  \node[ann, anchor=south] at (7.05,0.4) {12};
+
+  % legend for the filter
+  \node[pfile, minimum width=5mm, minimum height=3.5mm, anchor=west] at (9.3,-0.85) {};
+  \node[ann, anchor=west] at (9.9,-0.85) {$<96$\,MB: rewritten};
+  \node[kfile, minimum width=5mm, minimum height=3.5mm, anchor=west] at (12.2,-0.85) {};
+  \node[ann, anchor=west] at (12.8,-0.85) {96--230\,MB: left alone};
+
+  % after
+  \node[lab, anchor=east] at (-0.3,-2.0) {after\\[-1pt]\scriptsize\mdseries 3 files};
+  \node[pfile, minimum width=39.2mm, anchor=west, fill=cprimary!30] (a1) at (0,-2.0) {$8{+}8{+}30{+}12{+}40 = 98$ MB};
+  \node[kfile, minimum width=44mm,  anchor=west] (a2) at (4.2,-2.0) {110 MB};
+  \node[kfile, minimum width=60mm,  anchor=west] (a3) at (8.85,-2.0) {150 MB};
+
+  \draw[arr] (b3.south) to[out=-90, in=90] (1.6,-1.7);
+  \draw[arr] (b6.south) to[out=-90, in=90] (2.6,-1.7);
+
+  % ruler
+  \node[lab, anchor=east] at (-0.3,-3.1) {size scale};
+  \draw[cneutral] (0,-2.9) -- (14.85,-2.9);
+  \foreach \mb/\x in {0/0, 96/3.84, 128/5.12, 230/9.2} {
+    \draw[cneutral] (\x,-2.8) -- (\x,-3.0);
+    \node[ann, anchor=north] at (\x,-3.0) {\mb\,MB};
+  }
+  \node[ann, anchor=north] at (3.84,-3.4) {min};
+  \node[ann, anchor=north] at (5.12,-3.4) {target};
+  \node[ann, anchor=north] at (9.2,-3.4) {max};
+\end{tikzpicture}}
+\end{center}
+
+\vspace{1mm}
+Iceberg's \texttt{rewrite\_data\_files} with \alert{bin-packing}: files
+below the minimum are packed into target-sized outputs; files already in
+range are skipped. Reading and rewriting those bytes is the price --- so
+the question is not \emph{whether} to compact, but \emph{when it pays}.
+\end{frame}
+
+% -------------------------------------------------------------
+
+\begin{frame}{Compact or not? Utility is benefit minus cost}
+\begin{center}
+\resizebox{0.97\textwidth}{!}{%
+\begin{tikzpicture}[node distance=3mm]
+  \node[term, text width=24mm, minimum height=14mm] (U)
+    {Utility $U$\\[1pt]\scriptsize\mdseries compact iff $U > 0$};
+  \node[font=\Large, right=of U] (eq) {$=$};
+  \node[box, fill=cprimary!12, text width=32mm, minimum height=14mm, right=of eq] (S)
+    {\textbf{Structural gain}\\[1pt]\scriptsize fewer files to list, plan, open};
+  \node[font=\Large, right=of S] (times) {$\times$};
+  \node[box, text width=32mm, minimum height=14mm, right=of times] (A)
+    {\textbf{Access pattern}\\[1pt]\scriptsize how often, and by which queries};
+  \node[font=\Large, right=of A] (minus) {$-$};
+  \node[cost, text width=30mm, minimum height=14mm, right=of minus] (C)
+    {\textbf{Cost} $C$\\[1pt]\scriptsize bytes rewritten, compute};
+
+  % the two benefit factors, bracketed
+  \begin{scope}[on background layer]
+    \node[draw=cprimary!50, densely dashed, rounded corners=3pt, inner sep=3pt,
+          fit=(S)(times)(A),
+          label={[lab, text=cprimary, align=center]above:Benefit $B$}] (Bgrp) {};
+  \end{scope}
+
+  \node[ann, below=1.5mm of S, text width=40mm, text=cprimary!80!black]
+    {how many files disappear?\\ \textbf{this paper: predict it from metadata}};
+  \node[ann, below=1.5mm of A, text width=40mm]
+    {a rarely read table gains little;\\ from query logs, not metadata};
+  \node[ann, below=1.5mm of C, text width=36mm]
+    {the operator's price list:\\ I/O, storage, compute};
+\end{tikzpicture}}
+\end{center}
+
+\vspace{1mm}
+\begin{columns}[T]
+\begin{column}{0.5\textwidth}
+We measure the structural gain as the \alert{file-reduction ratio}
+\[
+  \rfc \;=\; 1 - \frac{n_{\mathrm{after}}}{n_{\mathrm{before}}} \in [0,1]
+\]
+\small $\rfc \approx 1$: the table collapses to a few files.
+$\rfc \approx 0$: the rewrite is wasted I/O.
+On the previous slide, $\rfc = 1 - 3/7 = 0.57$.
+\end{column}
+\begin{column}{0.46\textwidth}
+\begin{block}{Two questions for the metadata}
+\begin{enumerate}
+  \item \textbf{Whether:} will compaction rewrite anything at all?
+  \item \textbf{How much:} what $\rfc$ will it achieve?
+\end{enumerate}
 \end{block}
+\small Access pattern and cost are the operator's; we supply the
+structural signal.
+\end{column}
+\end{columns}
+\end{frame}
+
+% -------------------------------------------------------------
+
+\begin{frame}{Today the decision is a rule; we make it a prediction}
+\begin{center}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=4mm]
+  \node[cost, text width=28mm, minimum height=15mm] (imp)
+    {\textbf{Imperative}\\[1pt]\scriptsize Iceberg \texttt{rewrite\_data\_files}:\\\scriptsize runs only when called};
+  \node[cost, text width=28mm, minimum height=15mm, right=of imp] (thr)
+    {\textbf{Static thresholds}\\[1pt]\scriptsize Delta: small-file count\\\scriptsize Hudi: commits, elapsed time};
+  \node[cost, text width=30mm, minimum height=15mm, right=of thr] (heur)
+    {\textbf{Heuristic ranking}\\[1pt]\scriptsize AutoComp (LinkedIn, 35k tables):\\\scriptsize hand-built traits, Pareto rank};
+  \node[cost, text width=28mm, minimum height=15mm, right=of heur, densely dashed] (prop)
+    {\textbf{Proprietary ML}\\[1pt]\scriptsize Databricks, Snowflake, S3 Tables:\\\scriptsize closed, not reproducible};
+  \node[box, fill=cprimary!12, text width=30mm, minimum height=15mm, right=of prop] (ours)
+    {\textbf{Open, learned}\\[1pt]\scriptsize which metadata features\\\scriptsize determine utility, and how well?};
+  \draw[arr] (imp) -- (thr);
+  \draw[arr] (thr) -- (heur);
+  \draw[arr] (heur) -- (prop);
+  \draw[arr] (prop) -- (ours);
+  \node[ann, above=1mm of heur] {``ML-based prediction is future work''};
+  \node[ann, above=1mm of ours, text=cprimary!80!black] {this paper};
+\end{tikzpicture}}
+\end{center}
+
+\vspace{-1mm}
+\small Every open scheduler fires on a fixed rule; no published study asks
+\emph{which} metadata determines compaction utility.
+
+\vspace{1mm}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\begin{block}{Target}
+\parbox[t][20mm][t]{\linewidth}{%
+  \centering
+  $\displaystyle \rfc = 1 - \frac{n_{\mathrm{after}}}{n_{\mathrm{before}}} \in [0,1]$\\[5pt]
+  \small measured by running Iceberg's bin-packing\\
+  \texttt{rewrite\_data\_files} on every table\par}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{block}{Two tasks, from metadata only}
+\parbox[t][20mm][t]{\linewidth}{%
+  \begin{enumerate}\small
+    \item \textbf{Classification:} will bin-packing rewrite any file?
+    \item \textbf{Regression:} predict $\rfc$, for cost-aware scheduling
+  \end{enumerate}
+  \small Inputs: manifests, snapshots, partition stats --- no data file is read.\par}
+\end{block}
+\end{column}
+\end{columns}
 \end{frame}
 
 % =============================================================
 \section{Methodology}
 % =============================================================
 
-\begin{frame}{Problem Formulation}
-\textbf{File count reduction ratio:}
-\[
-  r_{\mathrm{fc}} = 1 - \frac{n_{\mathrm{after}}}{n_{\mathrm{before}}}
-\]
-
-\vspace{0.5em}
-Two tasks:
-\begin{enumerate}
-  \item \textbf{Classification:} Does the table need compaction?
-        (did bin-packing rewrite any file, $n_{\mathrm{rewritten}} > 0$)
-  \item \textbf{Regression:} Predict the continuous $r_{\mathrm{fc}} \in [0,1]$
-        for cost-aware scheduling
-\end{enumerate}
-
-\vspace{1em}
-\textbf{Key constraint:} features extracted only from Iceberg metadata
-(manifests, snapshots, partition stats). No data files read.
-\end{frame}
-
 % -------------------------------------------------------------
 
-\begin{frame}{Simulation Framework}
+\begin{frame}{Simulation: 2,376 synthetic tables, each compacted once and labelled}
+% One parameter card per grid axis (values from code/params.py), multiplied
+% out to the table count; \axiscard and \cardname are defined in the preamble.
+\vspace{-1mm}
+{\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}
+  % ---- rows ----
+  \axiscard{rows}{0}{2.0cm}{3}
+  \cardname{rows}{\faIcon{database}}{rows}
+  \node[chip] at (0.36,-0.05) {$10^4$};
+  \node[chip] at (1.00,-0.05) {$10^5$};
+  \node[chip] at (1.64,-0.05) {$10^6$};
+  \node[ann] at (1.0,-0.68) {per table};
+  \node[times] at (2.225,0) {$\times$};
+
+  % ---- columns ----
+  \axiscard{cols}{2.45}{2.0cm}{2}
+  \cardname{cols}{\faIcon{columns}}{columns}
+  \node[chip] at (3.17,-0.05) {5};
+  \node[chip] at (3.73,-0.05) {50};
+  \node[ann] at (3.45,-0.68) {UUID payload};
+  \node[times] at (4.675,0) {$\times$};
+
+  % ---- partitions ----
+  \axiscard{parts}{4.9}{2.15cm}{3}
+  \cardname{parts}{\faIcon{th}}{partitions}
+  \node[chip] at (5.33,-0.05) {1};
+  \node[chip] at (5.88,-0.05) {10};
+  \node[chip] at (6.58,-0.05) {100};
+  \node[ann] at (5.975,-0.68) {1 = unpartitioned};
+  \node[times] at (7.275,0) {$\times$};
+
+  % ---- writers ----
+  \axiscard{writers}{7.5}{2.0cm}{2}
+  \cardname{writers}{\faIcon{users}}{writers}
+  \node[chip] at (8.22,-0.05) {1};
+  \node[chip] at (8.78,-0.05) {5};
+  \node[ann] at (8.5,-0.68) {one file each,\\[-2pt]per partition};
+  \node[times] at (9.725,0) {$\times$};
+
+  % ---- batches ----
+  \axiscard{batches}{9.95}{2.0cm}{3}
+  \cardname{batches}{\faIcon{layer-group}}{batches}
+  \node[chip] at (10.39,-0.05) {1};
+  \node[chip] at (10.95,-0.05) {5};
+  \node[chip] at (11.53,-0.05) {20};
+  \node[ann] at (10.95,-0.68) {append rounds};
+  \node[times] at (12.175,0) {$\times$};
+
+  % ---- file-size target: log ruler, 11 ticks ----
+  \axiscard{fsz}{12.4}{3.0cm}{11}
+  \cardname{fsz}{\faIcon{file-alt}}{file-size target}
+  \begin{scope}[shift={(12.6,-0.12)}]
+    % x = (log2(KB) - 3) / 14 * 2.6 : 8 KB .. 128 MB
+    \draw[cneutral, thick] (0,0) -- (2.6,0);
+    \foreach \x in {0, 0.743, 1.114, 1.486, 1.671, 1.857, 2.043, 2.151, 2.229, 2.414, 2.6}
+      \draw[cprimary, thick] (\x,-0.09) -- (\x,0.09);
+    \node[ann, anchor=north] at (0,-0.12) {8\,KB};
+    \node[ann, anchor=north] at (1.486,-0.12) {2\,MB};
+    \node[ann, anchor=north] at (2.6,-0.12) {128\,MB};
+  \end{scope}
+  \node[times] at (15.625,0) {$\times$};
+
+  % ---- partition skew: two mini bar charts ----
+  \axiscard{skew}{15.85}{2.2cm}{2}
+  \cardname{skew}{\faIcon{chart-bar}}{skew}
+  \begin{scope}[shift={(16.1,-0.45)}]
+    \foreach \i in {0,1,2,3}
+      \fill[cprimary!45] (\i*0.17,0) rectangle ++(0.13,0.42);
+    \node[ann, anchor=north] at (0.32,-0.04) {uniform};
+  \end{scope}
+  \begin{scope}[shift={(17.15,-0.45)}]
+    \foreach \i/\h in {0/0.42, 1/0.21, 2/0.14, 3/0.105}
+      \fill[cprimary] (\i*0.17,0) rectangle ++(0.13,\h);
+    \node[ann, anchor=north] at (0.32,-0.04) {Zipf $s{=}1$};
+  \end{scope}
+
+  % ---- product ----
+  \node[times] at (18.3,0) {$=$};
+  \node[term, anchor=west, minimum height=20mm, text width=19mm] at (18.6,0)
+    {\large 2,376\\[1pt]\small tables\\[1pt]\scriptsize\mdseries $3{\cdot}2{\cdot}3{\cdot}2{\cdot}3{\cdot}11{\cdot}2$};
+\end{tikzpicture}}
+\par}
+
+\vspace{1.5mm}
 \begin{columns}[T]
-\begin{column}{0.50\textwidth}
-\textbf{Parameter grid:} 7 axes, 2,376 combinations
-\begin{itemize}
-  \item Row counts: $10^4$ to $10^6$
-  \item File-size targets: 8\,KB to 128\,MB
-  \item Partitions: 1 to 100
-  \item Writers: 1 or 5
-  \item Batches: 1 to 20
-  \item Skew: uniform vs.\ Zipfian
-  \item Payload: 5 or 50 UUID columns
-\end{itemize}
+\begin{column}{0.56\textwidth}
+\textbf{Heterogeneous appends} \hfill {\scriptsize box width $\propto$ file-size target}
+\vspace{0.5mm}
+
+{\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}
+  \draw[arr] (-0.1,0.95) -- (8.7,0.95) node[ann, right] {time};
+  % batch 1: initial load, 50% of rows, configured target
+  \node[lab, text=cprimary] at (1.85,0.6) {batch 1};
+  \foreach \i in {0,1,2,3} { \node[pfile, minimum width=9mm, anchor=west] at (\i*0.95,0) {}; }
+  \node[ann] at (1.85,-0.55) {50\% of rows};
+  % batches 2..5: remaining rows split equally; even batches use target / 8
+  \foreach \b/\x in {2 ($\div 8$)/4.1, 3/5.3, 4 ($\div 8$)/6.5, 5/7.7} {
+    \node[lab, text=cprimary] at (\x+0.45,0.6) {\b};
+  }
+  \foreach \x in {4.1, 6.5} {
+    \foreach \i in {0,...,7} { \node[pfile, minimum width=1mm, anchor=west] at (\x+\i*0.115,0) {}; }
+  }
+  \foreach \x in {5.3, 7.7} { \node[pfile, minimum width=9mm, anchor=west] at (\x,0) {}; }
+  \node[ann] at (6.0,-0.55) {remaining 50\%, split equally};
+  \node[ann, text=cprimary!80!black] at (6.0,-1.0) {even batches: file-size target $\div\,8$ $\rightarrow$ many small files};
+\end{tikzpicture}}
+\par}
+
+\vspace{0.5mm}
+\small One table, two file-size regimes: mean file size alone no longer
+gives the label away --- the \alert{tautology trap}.
 \end{column}
-\begin{column}{0.47\textwidth}
-\textbf{Heterogeneous writes:}
-\begin{itemize}
-  \item Batch 1: 50\% of rows (initial load)
-  \item Even batches: $8\times$ smaller file target
-  \item Breaks the ``tautology trap''
-\end{itemize}
-\vspace{0.5em}
-\textbf{Compaction:} Iceberg bin-packing
-\begin{itemize}
-  \item Target: 128\,MB
-  \item Min: 96\,MB (75\%)
-  \item Max: 230\,MB (180\%)
-\end{itemize}
+\begin{column}{0.42\textwidth}
+\textbf{Per table}
+\vspace{0.5mm}
+
+\begin{tikzpicture}[node distance=1.5mm]
+  \node[stage, text width=54mm, align=left, minimum height=8mm] (gen)
+    {\faIcon{cogs}\; \textbf{Generate}\\\scriptsize Spark writes one Iceberg table per grid point};
+  \node[stage, text width=54mm, align=left, minimum height=8mm, below=of gen] (ext)
+    {\faIcon{list-ul}\; \textbf{Extract}\\\scriptsize 17 features from manifests, no data file opened};
+  \node[stage, text width=54mm, align=left, minimum height=8mm, below=of ext] (cmp)
+    {\faIcon{compress-arrows-alt}\; \textbf{Compact}\\\scriptsize bin-pack to 128\,MB; 96--230\,MB left alone};
+  \node[stage, text width=54mm, align=left, minimum height=8mm, below=of cmp] (lbl)
+    {\faIcon{tag}\; \textbf{Label}\\\scriptsize $\rfc = 1 - n_{\mathrm{after}}/n_{\mathrm{before}}$; class: rewritten $> 0$};
+  \draw[arr] (gen) -- (ext);
+  \draw[arr] (ext) -- (cmp);
+  \draw[arr] (cmp) -- (lbl);
+\end{tikzpicture}
 \end{column}
 \end{columns}
 \end{frame}
@@ -194,10 +566,16 @@ Two tasks:
 
 \begin{frame}{17 Metadata Features}
 \centering
-\includegraphics[height=0.76\textheight]{../paper/plots/feature_violins.pdf}\\[0.2em]
-\small All 17 features, min--max scaled to $[0,1]$.
-Asterisked features are $\log_{10}$-transformed.
-Extracted from manifests alone --- no data file is opened.
+% Two-panel 16:9 version of the paper's ridge plot, produced by
+%   make violins   (code/evaluate.py --only-violins, needs data/dataset.csv)
+% Until it exists, fall back to the portrait figure from the paper.
+\IfFileExists{../paper/plots/feature_violins_wide.pdf}{%
+  \includegraphics[width=\textwidth]{../paper/plots/feature_violins_wide.pdf}\\[0.3em]
+}{%
+  \includegraphics[height=0.76\textheight]{../paper/plots/feature_violins.pdf}\\[0.2em]
+}
+\small Min--max scaled to $[0,1]$; * = $\log_{10}$-transformed.
+Read from manifests alone --- no data file is opened.
 \end{frame}
 
 % =============================================================
@@ -531,11 +909,9 @@ to query both snapshots. Median of 3 timed runs.
 \centering
 \vspace{2em}
 {\Large\textbf{Thank You}}\\[1.5em]
-{\large Questions?}\\[2em]
-\small
-Jannic Alexander Cutura \quad\textbar\quad Subash Prakash\\[0.3em]
-\texttt{jannic.cutura@dsti.institute} \quad\textbar\quad
-\texttt{subash.prakash@ibm.com}
+{\large Questions?}\\[2.5em]
+\small Simulation framework, models and code:\\[0.3em]
+\url{https://github.com/JannicCutura/smart-compaction}
 \end{frame}
 
 % =============================================================

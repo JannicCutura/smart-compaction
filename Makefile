@@ -1,4 +1,4 @@
-.PHONY: install_tex install_py tex arxiv slides clean params generate mount_data snapshot restore extract compact label train evaluate pipeline ablation ablation_plots compact_512 query_bench
+.PHONY: install_tex install_py tex arxiv arxiv_pkg arxiv_pkg_check slides clean params generate mount_data snapshot restore extract compact label train evaluate violins violins_wide_from_pdf pipeline ablation ablation_plots compact_512 query_bench
 
 VENV := .venv
 PY := $(VENV)/bin/python
@@ -51,6 +51,16 @@ train: install_py
 evaluate: install_py
 	$(PY) code/evaluate.py
 
+# Only the two feature ridge plots (paper portrait + 16:9 slide version);
+# needs data/dataset.csv but not the trained models.
+violins: install_py
+	$(PY) code/evaluate.py --only-violins
+
+# Same wide plot without the dataset: lifts the 17 KDE curves back out of the
+# published vector figure paper/plots/feature_violins.pdf (see the script).
+violins_wide_from_pdf: install_py
+	$(PY) code/violins_from_pdf.py
+
 pipeline: extract snapshot compact label train evaluate
 	@echo "=== Pipeline complete ==="
 	@echo "Features:  data/features.csv"
@@ -81,6 +91,25 @@ tex:
 ARXIV_SRC := "\def\ARXIV{}\input{paper}"
 arxiv:
 	cd paper && pdflatex -interaction=nonstopmode -halt-on-error -jobname=paper-arxiv $(ARXIV_SRC) && bibtex paper-arxiv && pdflatex -interaction=nonstopmode -halt-on-error -jobname=paper-arxiv $(ARXIV_SRC) && pdflatex -interaction=nonstopmode -halt-on-error -jobname=paper-arxiv $(ARXIV_SRC)
+
+# arXiv submission package. arXiv compiles the .tex itself, so it cannot pass
+# the command-line \def that `arxiv` above uses -- the switch has to be baked
+# into the source, and the .bbl has to ship (arXiv does not run BibTeX).
+# See paper/make_arxiv_pkg.py. Depends on `arxiv` for an up-to-date .bbl.
+arxiv_pkg: arxiv
+	python3 paper/make_arxiv_pkg.py
+	@echo "=== Upload paper/paper-arxiv-submission.tar.gz to arXiv ==="
+
+# Verify the package compiles the way arXiv does: pdflatex x3, no bibtex,
+# in a scratch copy so no pre-existing .aux file can mask a missing input.
+arxiv_pkg_check: arxiv_pkg
+	rm -rf paper/.arxivcheck && cp -r paper/arxiv paper/.arxivcheck
+	cd paper/.arxivcheck && for i in 1 2 3; do \
+	    pdflatex -interaction=nonstopmode -halt-on-error paper-arxiv.tex >/dev/null || exit 1; done
+	@! grep -q 'undefined' paper/.arxivcheck/paper-arxiv.log || \
+	    { echo "FAIL: undefined references or citations"; exit 1; }
+	@grep 'Output written' paper/.arxivcheck/paper-arxiv.log
+	rm -rf paper/.arxivcheck
 
 slides:
 	cd presentation && pdflatex -interaction=nonstopmode presentation.tex && pdflatex -interaction=nonstopmode presentation.tex
