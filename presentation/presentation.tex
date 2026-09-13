@@ -5,23 +5,24 @@
 % furniture and the embedded figures use one consistent scheme.
 \usetheme{Madrid}
 \usecolortheme{default}
-\definecolor{cprimary}{HTML}{911A4B}    % burgundy   -- main model / positive class
-\definecolor{csecondary}{HTML}{0D1C24}  % dark navy  -- baseline / negative class
-\definecolor{ctertiary}{HTML}{5A7D8C}   % slate blue -- accents
+\definecolor{cprimary}{HTML}{911A4B}    % burgundy   -- highlight only: alerts, ours, benefit
+\definecolor{csecondary}{HTML}{5A7D8C}  % slate blue -- baseline / cost / before, footline edges
+\definecolor{ctertiary}{HTML}{0D1C24}   % dark navy  -- metadata, accents
+\colorlet{cmain}{ctertiary}             % theme furniture: titles, blocks, bullets, arrows
 \definecolor{cneutral}{HTML}{BBBBBB}    % light grey -- rules, de-emphasis
 \definecolor{chighlight}{HTML}{A89882}  % warm taupe -- emphasis
 \definecolor{cdark}{HTML}{222222}       % near-black -- text
-\setbeamercolor{structure}{fg=cprimary}
-\setbeamercolor{title}{fg=white, bg=cprimary}
-\setbeamercolor{frametitle}{fg=white, bg=cprimary}
-\setbeamercolor{block title}{fg=white, bg=cprimary}
-\setbeamercolor{block body}{bg=cprimary!6}
-\setbeamercolor{item}{fg=cprimary}
+\setbeamercolor{structure}{fg=cmain}
+\setbeamercolor{title}{fg=white, bg=cmain}
+\setbeamercolor{frametitle}{fg=white, bg=cmain}
+\setbeamercolor{block title}{fg=white, bg=cmain}
+\setbeamercolor{block body}{bg=cmain!8}
+\setbeamercolor{item}{fg=cmain}
 \setbeamercolor{alerted text}{fg=cprimary}
 \setbeamerfont{alerted text}{series=\bfseries}
 \setbeamercolor{section in toc}{fg=cdark}
 \setbeamercolor{author in head/foot}{fg=white, bg=csecondary}
-\setbeamercolor{title in head/foot}{fg=white, bg=cprimary!85!black}
+\setbeamercolor{title in head/foot}{fg=white, bg=cmain!85!black}
 \setbeamercolor{date in head/foot}{fg=white, bg=csecondary}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}{%
@@ -82,7 +83,7 @@
               minimum height=7mm, inner xsep=6pt, align=center, font=\small},
   stage/.style={draw=cprimary!60, fill=cprimary!5, rounded corners=2pt,
                 minimum height=9mm, align=center, inner xsep=5pt, font=\small},
-  term/.style={draw=cprimary, thick, rounded corners=2pt, minimum height=9mm,
+  term/.style={draw=cmain, thick, rounded corners=2pt, minimum height=9mm,
                align=center, inner xsep=5pt, font=\small\bfseries},
   meta/.style={draw=ctertiary, thick, rounded corners=2pt, fill=ctertiary!12,
                minimum height=6mm, inner xsep=4pt, align=center, font=\small},
@@ -94,7 +95,7 @@
   tiny/.style={draw=cprimary, rounded corners=1pt, fill=cprimary!14,
                minimum width=4.2mm, minimum height=3.6mm, inner sep=0pt},
   layer/.style={draw=cneutral, rounded corners=3pt, fill=black!3, inner sep=5pt},
-  arr/.style={-{Stealth[length=2mm]}, draw=cprimary!70, thick},
+  arr/.style={-{Stealth[length=2mm]}, draw=cmain!80, thick},
   marr/.style={-{Stealth[length=1.6mm]}, draw=ctertiary!80, thin},
   ann/.style={font=\scriptsize\itshape, text=black!55, inner sep=1.5pt, align=center},
   lab/.style={font=\scriptsize\bfseries, text=black!60, inner sep=1pt, align=right},
@@ -102,11 +103,11 @@
   card/.style={draw=cneutral, rounded corners=3pt, fill=black!3, inner sep=0pt,
                minimum height=20mm},
   cname/.style={font=\small\bfseries, text=cdark, inner sep=0pt},
-  count/.style={circle, fill=cprimary, text=white, font=\scriptsize\bfseries,
+  count/.style={circle, fill=cmain, text=white, font=\scriptsize\bfseries,
                 inner sep=0.8pt, minimum size=3.8mm},
-  chip/.style={draw=cprimary, rounded corners=1.5pt, fill=cprimary!14, font=\footnotesize,
+  chip/.style={draw=cmain, rounded corners=1.5pt, fill=cmain!14, font=\footnotesize,
                inner xsep=2pt, inner ysep=1.5pt, text=cdark},
-  times/.style={font=\Large, text=cprimary!70},
+  times/.style={font=\Large, text=cmain!80},
 }
 
 % --- Metadata ---
@@ -208,7 +209,7 @@ cheap object storage.
   % timeline
   \draw[arr] (-0.2,0.9) -- (8.9,0.9) node[ann, right] {time};
   \foreach \c/\x in {1/0.6, 2/2.4, 3/4.2, 4/6.0, 5/7.8} {
-    \node[lab, text=cprimary] at (\x,1.2) {commit \c};
+    \node[lab, text=cmain] at (\x,1.2) {commit \c};
   }
   % partitions x commits, two writers per cell
   \foreach \p/\y in {A/0, B/-1, C/-2} {
@@ -399,7 +400,7 @@ structural signal.
 \begin{columns}[T]
 \begin{column}{0.48\textwidth}
 \begin{block}{Target}
-\parbox[t][20mm][t]{\linewidth}{%
+\parbox[t][22mm][t]{\linewidth}{%
   \centering
   $\displaystyle \rfc = 1 - \frac{n_{\mathrm{after}}}{n_{\mathrm{before}}} \in [0,1]$\\[5pt]
   \small measured by running Iceberg's bin-packing\\
@@ -408,12 +409,12 @@ structural signal.
 \end{column}
 \begin{column}{0.48\textwidth}
 \begin{block}{Two tasks, from metadata only}
-\parbox[t][20mm][t]{\linewidth}{%
+\parbox[t][22mm][t]{\linewidth}{%
   \begin{enumerate}\small
     \item \textbf{Classification:} will bin-packing rewrite any file?
     \item \textbf{Regression:} predict $\rfc$, for cost-aware scheduling
   \end{enumerate}
-  \small Inputs: manifests, snapshots, partition stats --- no data file is read.\par}
+  \small Inputs: manifests, snapshots, partition stats; no data file is read.\par}
 \end{block}
 \end{column}
 \end{columns}
