@@ -286,8 +286,10 @@ catalogs accumulate \alert{millions} of undersized files.
   \node[kfile, minimum width=44mm,  anchor=west] (a2) at (4.2,-2.0) {110 MB};
   \node[kfile, minimum width=60mm,  anchor=west] (a3) at (8.85,-2.0) {150 MB};
 
-  \draw[arr] (b3.south) to[out=-90, in=90] (1.6,-1.7);
-  \draw[arr] (b6.south) to[out=-90, in=90] (2.6,-1.7);
+  % one arrow per rewritten file, fanned across the packed output
+  \foreach \src/\x in {b1/0.5, b2/1.2, b3/1.9, b5/2.7, b6/3.4} {
+    \draw[arr, semithick] (\src.south) to[out=-90, in=90] (\x,-1.7);
+  }
 
   % ruler
   \node[lab, anchor=east] at (-0.3,-3.1) {size scale};
@@ -773,36 +775,6 @@ compaction threshold.
 \end{columns}
 \end{frame}
 
-% -------------------------------------------------------------
-
-\begin{frame}{Does Compaction Actually Make Queries Faster?}
-\begin{columns}[T]
-\begin{column}{0.52\textwidth}
-\includegraphics[width=\textwidth]{../paper/plots/query_speedup.pdf}\\[0.2em]
-\small 52 TPC-H tables, Iceberg time-travel (\texttt{VERSION AS OF})
-to query both snapshots. Median of 3 timed runs.
-\end{column}
-\begin{column}{0.46\textwidth}
-\textbf{Not universally.}
-\begin{itemize}
-  \item \texttt{COUNT(*)}: \textbf{1.19$\times$} faster ---
-        metadata overhead dominates
-  \item Filtered aggregation: neutral to 0.76$\times$
-  \item Full-scan aggregation: \textbf{0.45$\times$}
-        --- 2$\times$ \emph{slower}
-\end{itemize}
-\vspace{0.5em}
-\begin{block}{Why}
-  Spark assigns tasks per file. Compacting 300 files into 1
-  drops parallelism from 300 tasks to 1, offsetting the
-  metadata saving for queries that must read everything.
-\end{block}
-\vspace{0.3em}
-\small Overall median across 104 measurements: \textbf{0.97$\times$}.
-\end{column}
-\end{columns}
-\end{frame}
-
 % =============================================================
 \section{Discussion}
 % =============================================================
@@ -919,6 +891,36 @@ to query both snapshots. Median of 3 timed runs.
 % Backup slides
 % =============================================================
 \appendix
+
+\begin{frame}{Backup: Does Compaction Actually Make Queries Faster?}
+\begin{columns}[T]
+\begin{column}{0.52\textwidth}
+\includegraphics[width=\textwidth]{../paper/plots/query_speedup.pdf}\\[0.2em]
+\small 52 TPC-H tables, Iceberg time-travel (\texttt{VERSION AS OF})
+to query both snapshots. Median of 3 timed runs.
+\end{column}
+\begin{column}{0.46\textwidth}
+\textbf{Not universally.}
+\begin{itemize}
+  \item \texttt{COUNT(*)}: \textbf{1.19$\times$} faster ---
+        metadata overhead dominates
+  \item Filtered aggregation: neutral to 0.76$\times$
+  \item Full-scan aggregation: \textbf{0.45$\times$}
+        --- 2$\times$ \emph{slower}
+\end{itemize}
+\vspace{0.5em}
+\begin{block}{Why}
+  Spark assigns tasks per file. Compacting 300 files into 1
+  drops parallelism from 300 tasks to 1, offsetting the
+  metadata saving for queries that must read everything.
+\end{block}
+\vspace{0.3em}
+\small Overall median across 104 measurements: \textbf{0.97$\times$}.
+\end{column}
+\end{columns}
+\end{frame}
+
+% -------------------------------------------------------------
 
 \begin{frame}{Backup: Per-Schema TPC-H Breakdown}
 \centering
