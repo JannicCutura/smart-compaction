@@ -592,15 +592,18 @@ Read from manifests alone --- no data file is opened.
 \small Distribution of $r_{\mathrm{fc}}$ across all 2,376 tables.
 \end{column}
 \begin{column}{0.46\textwidth}
-\begin{itemize}
-  \item \textbf{2,376} tables generated
-  \item \textbf{2,121} (89.3\%) had at least one file rewritten
-  \item $r_{\mathrm{fc}}$: mean 0.818, median 0.950, $\sigma = 0.294$
-\end{itemize}
+\begin{tikzpicture}[node distance=2mm]
+  \node[cost, text width=52mm, align=left] (n1)
+    {\faIcon{database}\;\textbf{2,376} tables generated};
+  \node[cost, text width=52mm, align=left, below=of n1] (n2)
+    {\faIcon{check-circle}\;\textbf{2,121} (89.3\%) had $\geq 1$ file rewritten};
+  \node[cost, text width=52mm, align=left, below=of n2] (n3)
+    {\faIcon{chart-bar}\;$r_{\mathrm{fc}}$: mean \textbf{0.818}, median 0.950, $\sigma{=}0.294$};
+\end{tikzpicture}
 \vspace{0.5em}
 \begin{block}{Bimodal, not continuous}
   Either compaction does essentially nothing, or it does a lot.
-  Only \textbf{11 of 2,376} tables land in $(0,\,0.5]$.
+  Only \alert{11 of 2,376} tables land in $(0,\,0.5]$.
 \end{block}
 \vspace{0.3em}
 \small So the binary label and the continuous target nearly
@@ -623,9 +626,9 @@ easy question and \emph{how much} is the interesting one.
 \toprule
 Model & Acc. & F1 \\
 \midrule
-XGBoost         & 1.000 & 1.000 \\
+XGBoost         & \textcolor{cprimary}{\textbf{1.000}} & \textcolor{cprimary}{\textbf{1.000}} \\
 Logistic Reg.   & 0.815 & 0.885 \\
-Threshold ($k{=}4$) & 1.000 & 1.000 \\
+Threshold ($k{=}4$) & \textcolor{cprimary}{\textbf{1.000}} & \textcolor{cprimary}{\textbf{1.000}} \\
 \bottomrule
 \end{tabular}}
 \vspace{0.8em}
@@ -646,22 +649,24 @@ a hard boundary, not a fitted one. Holds at every prevalence level.
 % -------------------------------------------------------------
 
 \begin{frame}{Where the Signal Lives}
+\vfill
 \begin{columns}[T]
 \begin{column}{0.50\textwidth}
 \centering
 \includegraphics[width=\textwidth]{../paper/plots/feature_importance_clf.pdf}\\[0.2em]
-{\small Classifier --- \textbf{86.4\%} of gain}
+{\small Classifier --- \alert{86.4\%} of gain}
 \end{column}
 \begin{column}{0.50\textwidth}
 \centering
 \includegraphics[width=\textwidth]{../paper/plots/feature_importance_reg.pdf}\\[0.2em]
-{\small Regressor --- \textbf{95.2\%} of gain}
+{\small Regressor --- \alert{95.2\%} of gain}
 \end{column}
 \end{columns}
-\vspace{0.5em}
+\vspace{0.8em}
 \centering
 \small Two partition-level counts dominate both tasks.
 Every other feature contributes $\leq 0.019$ gain.
+\vfill
 \end{frame}
 
 % -------------------------------------------------------------
@@ -677,15 +682,15 @@ Every other feature contributes $\leq 0.019$ gain.
 \toprule
 Model & RMSE & $R^2$ \\
 \midrule
-XGBoost    & 0.013 & 0.998 \\
+XGBoost    & \textcolor{cprimary}{\textbf{0.013}} & \textcolor{cprimary}{\textbf{0.998}} \\
 OLS        & 0.236 & 0.361 \\
 \bottomrule
 \end{tabular}}
 \vspace{0.5em}
 \begin{itemize}
   \item OLS cannot capture the nonlinear saturation curve
-  \item Two features account for \textbf{95.2\%} of regressor gain
-  \item Spearman $\rho = 0.965$: monotonic but not linear
+  \item Two features account for \alert{95.2\%} of regressor gain
+  \item Spearman \alert{$\rho = 0.965$}: monotonic but not linear
 \end{itemize}
 \end{column}
 \begin{column}{0.50\textwidth}
@@ -705,17 +710,20 @@ OLS        & 0.236 & 0.361 \\
 Past five, returns diminish.
 \end{column}
 \begin{column}{0.48\textwidth}
-\textbf{Four robustness checks:}
-\begin{itemize}
-  \item \textbf{Ablation:} the other 15 features add only
-        $\Delta R^2 = 0.023$ (95\% CI $[0.004, 0.044]$)
-  \item \textbf{Leave-one-out:} every single removal still
-        keeps $R^2 \geq 0.988$
-  \item \textbf{30 bootstrap splits:} $R^2 = 0.999$,
-        CI $[0.996, 1.000]$
-  \item \textbf{Prevalence 89\% $\to$ 30\%:} regression
-        $R^2 > 0.995$ throughout
-\end{itemize}
+\textbf{Four robustness checks}
+\vspace{1mm}
+
+\begin{tikzpicture}[node distance=1.8mm]
+  \node[cost, text width=52mm, align=left] (abl)
+    {\faIcon{cut}\;\textbf{Ablation}\\\scriptsize other 15 features add only $\Delta R^2{=}0.023$ (95\% CI [0.004, 0.044])};
+  \node[cost, text width=52mm, align=left, below=of abl] (loo)
+    {\faIcon{minus-circle}\;\textbf{Leave-one-out}\\\scriptsize every single removal keeps $R^2 \geq 0.988$};
+  \node[cost, text width=52mm, align=left, below=of loo] (boot)
+    {\faIcon{random}\;\textbf{30 bootstrap splits}\\\scriptsize $R^2 = 0.999$, CI [0.996, 1.000]};
+  \node[cost, text width=52mm, align=left, below=of boot] (prev)
+    {\faIcon{balance-scale}\;\textbf{Prevalence 89\%$\to$30\%}\\\scriptsize regression $R^2 > 0.995$ throughout};
+\end{tikzpicture}
+
 \vspace{0.4em}
 \small Holds across model families too --- random forest 0.998,
 decision tree 0.997. Any tree-based model suffices; only the
@@ -747,24 +755,24 @@ linear baseline fails.
 \toprule
 Task & Acc./RMSE & F1/$R^2$ \\
 \midrule
-Clf (XGBoost)            & 0.979 & 0.987 \\
-Clf (Threshold $k{=}4$)  & 0.979 & 0.987 \\
+Clf (XGBoost)            & \textcolor{cprimary}{\textbf{0.979}} & \textcolor{cprimary}{\textbf{0.987}} \\
+Clf (Threshold $k{=}4$)  & \textcolor{cprimary}{\textbf{0.979}} & \textcolor{cprimary}{\textbf{0.987}} \\
 Clf (\texttt{sfr}${>}0$) & 0.833 & 0.908 \\
 Clf (Majority class)     & 0.823 & 0.903 \\
-Reg (XGBoost)            & 0.058 & 0.976 \\
+Reg (XGBoost)            & 0.058 & \textcolor{cprimary}{\textbf{0.976}} \\
 \bottomrule
 \end{tabular}}
 \end{column}
 \begin{column}{0.53\textwidth}
 \textbf{Key findings:}
 \begin{itemize}
-  \item Transfers with \textbf{no retraining} --- no TPC-H
+  \item Transfers with \alert{no retraining} --- no TPC-H
         table was seen during training
-  \item XGBoost and the $k{=}4$ threshold tie at 97.9\%,
+  \item XGBoost and the $k{=}4$ threshold tie at \alert{97.9\%},
         missing the same two borderline tables
         (3 files at $\sim$50\,MB)
   \item The learned model earns its keep on the
-        \emph{continuous} target ($R^2 = 0.976$),
+        \emph{continuous} target (\alert{$R^2 = 0.976$}),
         not the binary decision
 \end{itemize}
 \vspace{0.3em}
@@ -780,7 +788,8 @@ compaction threshold.
 % =============================================================
 
 \begin{frame}{Key Insights}
-\begin{block}{Tautology Trap}
+\small
+\begin{block}{\faIcon{exclamation-triangle}\; Tautology Trap}
   Our first grid produced only small files (max ${\sim}0.4$\,MB vs.\ the
   96\,MB threshold), so \emph{every} table compacted completely:
   $r_{\mathrm{fc}} = 1 - 1/N$. XGBoost scored $R^2 = 0.99$ by
@@ -788,8 +797,8 @@ compaction threshold.
   only small synthetic files will produce misleadingly perfect metrics.
 \end{block}
 
-\vspace{0.5em}
-\begin{block}{Feature Dominance}
+\vspace{0.25em}
+\begin{block}{\faIcon{star}\; Feature Dominance}
   Partition-level file counts (\texttt{max\_files\_per\_partition},
   \texttt{avg\_files\_per\_partition}) dominate both tasks.
   \begin{itemize}
@@ -798,14 +807,14 @@ compaction threshold.
   \end{itemize}
 \end{block}
 
-\vspace{0.5em}
-\begin{block}{Practical Implication}
+\vspace{0.25em}
+\begin{block}{\faIcon{lightbulb}\; Practical Implication}
   AutoComp's compaction traits already include these features.
   They are sufficient for the binary decision --- but
   \textbf{cost-aware scheduling} needs the continuous
   prediction. A workable rule: compact when predicted
   $r_{\mathrm{fc}} > 0.3$, which drops the lowest-utility jobs
-  while keeping 99.8\% of the beneficial ones.
+  while keeping \alert{99.8\%} of the beneficial ones.
 \end{block}
 \end{frame}
 
@@ -814,8 +823,8 @@ compaction threshold.
 \begin{frame}{Threats to Validity}
 \begin{columns}[T]
 \begin{column}{0.48\textwidth}
-\textbf{Setup:}
-\begin{itemize}
+\begin{block}{\faIcon{cogs}\; Setup}
+\begin{itemize}\small
   \item Synthetic UUID payloads compress differently from real
         columnar data
   \item Partition structure generated, not domain-derived;
@@ -825,20 +834,21 @@ compaction threshold.
   \item 89.3\% prevalence may inflate accuracy --- mitigated by
         majority-class baseline, downsampling, bootstrap CIs
 \end{itemize}
+\end{block}
 \end{column}
 \begin{column}{0.48\textwidth}
-\textbf{Scope --- what we did \emph{not} test:}
-\begin{itemize}
-  \item \textbf{Delete files / MoR:} we use Copy-on-Write only.
-        Merging delete files is a different dynamic our features
-        do not capture
-  \item \textbf{Sort and z-order:} bin-packing only. Their utility
+\begin{block}{\faIcon{search}\; Scope --- Not Tested}
+\begin{itemize}\small
+  \item \textbf{Delete files / MoR:} Copy-on-Write only;
+        merging delete files is a different dynamic
+  \item \textbf{Sort and z-order:} bin-packing only; utility
         depends on query workload, which metadata cannot see
   \item \textbf{Temporal evolution:} static snapshots; a table
-        that is fine now may need compaction after the next write
+        fine now may need compaction after the next write
   \item \textbf{One compaction target:} $k{=}4$ is tied to the
         128\,MB/96\,MB configuration
 \end{itemize}
+\end{block}
 \end{column}
 \end{columns}
 \end{frame}
@@ -852,10 +862,10 @@ compaction threshold.
   \item \textbf{Binary compaction decision} is trivially solvable
         by a single partition-level threshold
   \item \textbf{Continuous reduction ratio} requires nonlinear modelling\\
-        (XGBoost $R^2 = 0.998$ vs.\ OLS $R^2 = 0.361$)
+        (XGBoost \alert{$R^2 = 0.998$} vs.\ OLS $R^2 = 0.361$)
   \item \textbf{Transfers across schemas} without retraining:
-        97.9\% on TPC-H (threshold and XGBoost alike),
-        regression $R^2 = 0.976$
+        \alert{97.9\%} on TPC-H (threshold and XGBoost alike),
+        regression \alert{$R^2 = 0.976$}
   \item Compaction utility is determined by \textbf{structural metadata},
         not data content
   \item Downstream benefit is \textbf{workload-dependent}: metadata-heavy
@@ -865,11 +875,11 @@ compaction threshold.
 \vspace{1em}
 \textbf{Future work:}
 \begin{itemize}
-  \item Extend to Delta Lake and Hudi
-  \item Add query-workload features and cloud-cost metrics
-  \item Multi-table scheduling via contextual bandits
-  \item Sort and z-order compaction strategies
-  \item Validation on production Iceberg catalogs
+  \item[\textcolor{cmain}{\faIcon{database}}] Extend to Delta Lake and Hudi
+  \item[\textcolor{cmain}{\faIcon{chart-line}}] Add query-workload features and cloud-cost metrics
+  \item[\textcolor{cmain}{\faIcon{random}}] Multi-table scheduling via contextual bandits
+  \item[\textcolor{cmain}{\faIcon{sort}}] Sort and z-order compaction strategies
+  \item[\textcolor{cmain}{\faIcon{check-double}}] Validation on production Iceberg catalogs
 \end{itemize}
 
 \vspace{0.5em}
@@ -902,20 +912,20 @@ to query both snapshots. Median of 3 timed runs.
 \begin{column}{0.46\textwidth}
 \textbf{Not universally.}
 \begin{itemize}
-  \item \texttt{COUNT(*)}: \textbf{1.19$\times$} faster ---
+  \item \texttt{COUNT(*)}: \alert{1.19$\times$} faster ---
         metadata overhead dominates
   \item Filtered aggregation: neutral to 0.76$\times$
-  \item Full-scan aggregation: \textbf{0.45$\times$}
+  \item Full-scan aggregation: \alert{0.45$\times$}
         --- 2$\times$ \emph{slower}
 \end{itemize}
 \vspace{0.5em}
-\begin{block}{Why}
+\begin{block}{\faIcon{question-circle}\; Why}
   Spark assigns tasks per file. Compacting 300 files into 1
   drops parallelism from 300 tasks to 1, offsetting the
   metadata saving for queries that must read everything.
 \end{block}
 \vspace{0.3em}
-\small Overall median across 104 measurements: \textbf{0.97$\times$}.
+\small Overall median across 104 measurements: \alert{0.97$\times$}.
 \end{column}
 \end{columns}
 \end{frame}
