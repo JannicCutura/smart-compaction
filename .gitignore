@@ -7,6 +7,9 @@ logs/
 
 agents/
 
+# Scratch space (e.g. talk scripts) — not for distribution
+misc/
+
 # Publisher PDFs — cited in paper/references.bib, not redistributable
 literature/
 

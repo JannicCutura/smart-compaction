@@ -565,22 +565,6 @@ gives the label away --- the \alert{tautology trap}.
 \end{columns}
 \end{frame}
 
-% -------------------------------------------------------------
-
-\begin{frame}{17 Metadata Features}
-\centering
-% Two-panel 16:9 version of the paper's ridge plot, produced by
-%   make violins   (code/evaluate.py --only-violins, needs data/dataset.csv)
-% Until it exists, fall back to the portrait figure from the paper.
-\IfFileExists{../paper/plots/feature_violins_wide.pdf}{%
-  \includegraphics[width=\textwidth]{../paper/plots/feature_violins_wide.pdf}\\[0.3em]
-}{%
-  \includegraphics[height=0.76\textheight]{../paper/plots/feature_violins.pdf}\\[0.2em]
-}
-\small Min--max scaled to $[0,1]$; * = $\log_{10}$-transformed.
-Read from manifests alone --- no data file is opened.
-\end{frame}
-
 % =============================================================
 \section{Results}
 % =============================================================
@@ -784,83 +768,14 @@ compaction threshold.
 \end{frame}
 
 % =============================================================
-\section{Discussion}
-% =============================================================
-
-\begin{frame}{Key Insights}
-\small
-\begin{block}{\faIcon{exclamation-triangle}\; Tautology Trap}
-  Our first grid produced only small files (max ${\sim}0.4$\,MB vs.\ the
-  96\,MB threshold), so \emph{every} table compacted completely:
-  $r_{\mathrm{fc}} = 1 - 1/N$. XGBoost scored $R^2 = 0.99$ by
-  recovering that identity ($\rho = 0.996$). Any benchmark using
-  only small synthetic files will produce misleadingly perfect metrics.
-\end{block}
-
-\vspace{0.25em}
-\begin{block}{\faIcon{star}\; Feature Dominance}
-  Partition-level file counts (\texttt{max\_files\_per\_partition},
-  \texttt{avg\_files\_per\_partition}) dominate both tasks.
-  \begin{itemize}
-    \item Binary decision: fully solvable by a single threshold
-    \item Continuous prediction: requires nonlinear modelling
-  \end{itemize}
-\end{block}
-
-\vspace{0.25em}
-\begin{block}{\faIcon{lightbulb}\; Practical Implication}
-  AutoComp's compaction traits already include these features.
-  They are sufficient for the binary decision --- but
-  \textbf{cost-aware scheduling} needs the continuous
-  prediction. A workable rule: compact when predicted
-  $r_{\mathrm{fc}} > 0.3$, which drops the lowest-utility jobs
-  while keeping \alert{99.8\%} of the beneficial ones.
-\end{block}
-\end{frame}
-
-% -------------------------------------------------------------
-
-\begin{frame}{Threats to Validity}
-\begin{columns}[T]
-\begin{column}{0.48\textwidth}
-\begin{block}{\faIcon{cogs}\; Setup}
-\begin{itemize}\small
-  \item Synthetic UUID payloads compress differently from real
-        columnar data
-  \item Partition structure generated, not domain-derived;
-        query patterns not modelled
-  \item Spark-local execution $\neq$ distributed clusters
-        with S3
-  \item 89.3\% prevalence may inflate accuracy --- mitigated by
-        majority-class baseline, downsampling, bootstrap CIs
-\end{itemize}
-\end{block}
-\end{column}
-\begin{column}{0.48\textwidth}
-\begin{block}{\faIcon{search}\; Scope --- Not Tested}
-\begin{itemize}\small
-  \item \textbf{Delete files / MoR:} Copy-on-Write only;
-        merging delete files is a different dynamic
-  \item \textbf{Sort and z-order:} bin-packing only; utility
-        depends on query workload, which metadata cannot see
-  \item \textbf{Temporal evolution:} static snapshots; a table
-        fine now may need compaction after the next write
-  \item \textbf{One compaction target:} $k{=}4$ is tied to the
-        128\,MB/96\,MB configuration
-\end{itemize}
-\end{block}
-\end{column}
-\end{columns}
-\end{frame}
-
-% =============================================================
 \section{Conclusion \& Future Work}
 % =============================================================
 
 \begin{frame}{Conclusion}
-\begin{enumerate}
+\begin{enumerate}\small
   \item \textbf{Binary compaction decision} is trivially solvable
         by a single partition-level threshold
+        (\texttt{max\_files\_per\_partition}~$>4$)
   \item \textbf{Continuous reduction ratio} requires nonlinear modelling\\
         (XGBoost \alert{$R^2 = 0.998$} vs.\ OLS $R^2 = 0.361$)
   \item \textbf{Transfers across schemas} without retraining:
@@ -870,19 +785,54 @@ compaction threshold.
         not data content
   \item Downstream benefit is \textbf{workload-dependent}: metadata-heavy
         queries speed up, full-scan aggregations slow down
+  \item \textbf{Practical rule:} compact when predicted
+        $r_{\mathrm{fc}} > 0.3$ --- drops the lowest-utility jobs while
+        keeping \alert{99.8\%} of the beneficial ones
 \end{enumerate}
 
-\vspace{1em}
-\textbf{Future work:}
-\begin{itemize}
-  \item[\textcolor{cmain}{\faIcon{database}}] Extend to Delta Lake and Hudi
-  \item[\textcolor{cmain}{\faIcon{chart-line}}] Add query-workload features and cloud-cost metrics
-  \item[\textcolor{cmain}{\faIcon{random}}] Multi-table scheduling via contextual bandits
-  \item[\textcolor{cmain}{\faIcon{sort}}] Sort and z-order compaction strategies
-  \item[\textcolor{cmain}{\faIcon{check-double}}] Validation on production Iceberg catalogs
-\end{itemize}
+\vspace{0.6em}
+\begin{block}{\faIcon{exclamation-triangle}\; Caveats}
+\small Validated on synthetic grids and TPC-H, not production clusters;
+one Copy-on-Write bin-packing target ($k{=}4$ tied to our 128/96\,MB
+config). And a methodological warning from our own first pass: a benchmark
+built only from undersized synthetic files compacts \emph{everything}
+completely, producing misleadingly perfect metrics --- realistic file-size
+heterogeneity is essential to a fair test.
+\end{block}
+\end{frame}
 
-\vspace{0.5em}
+% -------------------------------------------------------------
+
+\begin{frame}{Future Work}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\textbf{Broaden scope}
+\begin{itemize}\small
+  \item[\textcolor{cmain}{\faIcon{database}}] Extend to Delta Lake and Hudi
+  \item[\textcolor{cmain}{\faIcon{eraser}}] Merge-on-read: delete-file
+        compaction, beyond Copy-on-Write
+  \item[\textcolor{cmain}{\faIcon{sort}}] Sort and z-order compaction
+        strategies
+  \item[\textcolor{cmain}{\faIcon{sliders-h}}] Generalise beyond one
+        compaction-target configuration
+\end{itemize}
+\end{column}
+\begin{column}{0.48\textwidth}
+\textbf{Toward production}
+\begin{itemize}\small
+  \item[\textcolor{cmain}{\faIcon{chart-line}}] Add query-workload features
+        and cloud-cost metrics
+  \item[\textcolor{cmain}{\faIcon{history}}] Model temporal evolution ---
+        utility drifts as tables change between writes
+  \item[\textcolor{cmain}{\faIcon{random}}] Multi-table scheduling via
+        contextual bandits
+  \item[\textcolor{cmain}{\faIcon{check-double}}] Validation on production
+        Iceberg catalogs, at distributed-cluster scale
+\end{itemize}
+\end{column}
+\end{columns}
+
+\vspace{1em}
 \centering
 \textbf{All code and data publicly available.}
 \end{frame}
@@ -893,7 +843,8 @@ compaction threshold.
 \vspace{2em}
 {\Large\textbf{Thank You}}\\[1.5em]
 {\large Questions?}\\[2.5em]
-\small Simulation framework, models and code:\\[0.3em]
+\small Contact: \texttt{jannic.cutura@dsti.institute}\\[0.8em]
+Simulation framework, models and code:\\[0.3em]
 \url{https://github.com/JannicCutura/smart-compaction}
 \end{frame}
 
@@ -901,6 +852,22 @@ compaction threshold.
 % Backup slides
 % =============================================================
 \appendix
+
+\begin{frame}{Backup: 17 Metadata Features}
+\centering
+% Two-panel 16:9 version of the paper's ridge plot, produced by
+%   make violins   (code/evaluate.py --only-violins, needs data/dataset.csv)
+% Until it exists, fall back to the portrait figure from the paper.
+\IfFileExists{../paper/plots/feature_violins_wide.pdf}{%
+  \includegraphics[width=\textwidth]{../paper/plots/feature_violins_wide.pdf}\\[0.3em]
+}{%
+  \includegraphics[height=0.76\textheight]{../paper/plots/feature_violins.pdf}\\[0.2em]
+}
+\small Min--max scaled to $[0,1]$; * = $\log_{10}$-transformed.
+Read from manifests alone --- no data file is opened.
+\end{frame}
+
+% -------------------------------------------------------------
 
 \begin{frame}{Backup: Does Compaction Actually Make Queries Faster?}
 \begin{columns}[T]
